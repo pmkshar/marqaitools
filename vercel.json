@@ -8,5 +8,8 @@
   "github": {
     "enabled": true,
     "silent": false
+  },
+  "env": {
+    "DATABASE_URL": "file:./db/custom.db"
   }
 }

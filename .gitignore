@@ -32,6 +32,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -60,3 +61,9 @@ worklog.md
 mini-services/
 examples/
 Caddyfile
+
+# Local SQLite database
+db/*.db
+db/*.db-journal
+prisma/*.db
+prisma/*.db-journal
