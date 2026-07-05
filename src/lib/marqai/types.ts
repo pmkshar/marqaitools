@@ -1,4 +1,8 @@
-// Marqai — Shared Types
+// Marqai — Shared Types (SaaS + RBAC edition)
+
+// ============================================================
+// MODULE IDENTIFIERS
+// ============================================================
 
 export type ModuleId =
   | "dashboard"
@@ -10,7 +14,143 @@ export type ModuleId =
   | "email"
   | "analyzer"
   | "ai-testing"
+  | "roles"
+  | "team"
+  | "billing"
+  | "wiki"
   | "settings";
+
+// ============================================================
+// RBAC
+// ============================================================
+
+export type PermissionLevel = "none" | "view" | "execute" | "manage";
+
+export type RoleScope = "platform" | "organization";
+
+export interface Role {
+  id: string;
+  name: string;
+  description?: string;
+  scope: RoleScope;
+  /** Map of moduleId -> permission level. Missing = "none". */
+  permissions: Partial<Record<ModuleId, PermissionLevel>>;
+  isSystem: boolean;
+  isLocked: boolean;
+  color: string;
+  createdAt: string;
+}
+
+export interface PermissionMatrix {
+  [moduleId: string]: PermissionLevel;
+}
+
+// ============================================================
+// AUTH / SESSION
+// ============================================================
+
+export type AuthPrincipalKind = "super_admin" | "org_user";
+
+export interface AuthPrincipal {
+  kind: AuthPrincipalKind;
+  userId: string;
+  email: string;
+  name: string;
+  avatarUrl?: string;
+  /** Set when kind === "org_user". */
+  organizationId?: string;
+  organizationName?: string;
+  organizationSlug?: string;
+  roleId?: string;
+  roleName?: string;
+  roleColor?: string;
+  permissions?: PermissionMatrix;
+  planSlug?: PlanSlug;
+  planName?: string;
+  trialEndsAt?: string;
+}
+
+// ============================================================
+// SaaS — PLANS
+// ============================================================
+
+export type PlanSlug = "starter" | "growth" | "scale" | "enterprise";
+
+export interface Plan {
+  slug: PlanSlug;
+  name: string;
+  pricePerMonth: number; // USD
+  seats: number;
+  aiCredits: number;
+  trialDays: number;
+  modules: ModuleId[];
+  popular?: boolean;
+  description: string;
+  features: string[];
+}
+
+export interface Subscription {
+  id: string;
+  organizationId: string;
+  planSlug: PlanSlug;
+  planName: string;
+  status: "trialing" | "active" | "past_due" | "suspended" | "cancelled";
+  currentPeriodStart: string;
+  currentPeriodEnd: string;
+  trialEndsAt?: string;
+  seatsUsed: number;
+  seatsLimit: number;
+  aiCreditsUsed: number;
+  aiCreditsLimit: number;
+}
+
+export interface Invoice {
+  id: string;
+  amountCents: number;
+  currency: string;
+  status: "draft" | "paid" | "void" | "refunded";
+  issuedAt: string;
+  description?: string;
+  pdfUrl?: string;
+}
+
+// ============================================================
+// ORGANIZATION & TEAM
+// ============================================================
+
+export interface Organization {
+  id: string;
+  name: string;
+  slug: string;
+  domain?: string;
+  logoUrl?: string;
+  createdAt: string;
+}
+
+export interface Team {
+  id: string;
+  name: string;
+  description?: string;
+  memberCount: number;
+}
+
+export interface TeamMember {
+  id: string;
+  userId: string;
+  name: string;
+  email: string;
+  avatarUrl?: string;
+  roleName: string;
+  roleColor: string;
+  teamRole: "Member" | "Lead" | "Viewer";
+  status: "active" | "invited" | "suspended";
+  lastLoginAt?: string;
+  jobTitle?: string;
+}
+
+// ============================================================
+// MARKETING DOMAIN (unchanged)
+// ============================================================
 
 export type Platform =
   | "twitter"

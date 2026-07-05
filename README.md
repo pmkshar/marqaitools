@@ -1,6 +1,6 @@
-# Marqai — AI Marketing & AI Tool Testing Suite
+# Marqai — AI Marketing & AI Tool Testing SaaS
 
-Marqai is an all-in-one AI marketing platform inspired by [coreyhaines31/marketingskills](https://github.com/coreyhaines31/marketingskills). It bundles SEO analytics, multi-platform social marketing, daily content scheduling, AI image & video generation, automated email campaigns, deep website analysis, and a **dedicated AI tool testing module** into a single Next.js application.
+Marqai is a multi-tenant SaaS platform that bundles SEO analytics, multi-platform social marketing, daily content scheduling, AI image & video generation, automated email campaigns, deep website analysis, and a **dedicated AI tool testing module** into a single Next.js application. Built with role-based access control (RBAC) and monthly subscription billing so digital agencies and enterprise marketing teams can onboard their sales and digital marketing teams in minutes.
 
 > Built with Next.js 16 (App Router) · TypeScript · Tailwind CSS 4 · shadcn/ui · Recharts · z-ai-web-dev-sdk · Zustand · Prisma.
 
@@ -19,7 +19,90 @@ Marqai is an all-in-one AI marketing platform inspired by [coreyhaines31/marketi
 | **Email Automation**| Campaigns + triggered automations. AI subject/body generation. Simulated send with metrics.        |
 | **Website Analyzer**| Deep portal analysis — tech stack, traffic, sources, keywords, competitors, missing features.      |
 | **AI Tool Testing** | **Dedicated module.** Run 40+ objective test cases against any AI tool. Full report card.          |
-| **Settings**        | Brand identity, team accounts, integrations, deploy (GitHub + Vercel).                             |
+| **Role Master**     | **Super Admin only.** Create unlimited custom roles with per-module permissions.                  |
+| **Team Management** | Invite team members, assign roles, manage seats against your plan.                                |
+| **Subscription**    | View plan, usage, billing cycle, upgrade/downgrade, monthly invoice history.                      |
+| **Wiki / Docs**     | In-app documentation — functional, technical, role-wise SOPs, developer guide.                    |
+| **Settings**        | Brand identity, integrations, API keys, deploy (GitHub + Vercel).                                  |
+
+---
+
+## 🏢 SaaS Architecture (Multi-tenant)
+
+Marqai is built on a **multi-tenant** model:
+
+```
+Platform (Marqai)
+└── Organization (tenant) — e.g. "Acme Marketing Pvt Ltd"
+    ├── Subscription (Plan + billing cycle + seats)
+    ├── Custom Roles (created by Org Admin / Super Admin)
+    │   ├── e.g. "SEO Specialist" — view SEO, Analyzer, Dashboard
+    │   ├── e.g. "Social Manager" — view Social, Scheduler, Image, Video
+    │   └── e.g. "Email Marketer" — view Email, Scheduler, Dashboard
+    ├── Team Members (users assigned to roles)
+    └── All marketing data is scoped to this Organization
+```
+
+### Special platform-level role: Super Admin
+
+The **Super Admin** is a platform-level role (not bound to any single Organization) who can:
+- Create new Organizations (clients)
+- Provision or revoke subscriptions
+- Create any number of custom roles inside any Organization
+- View cross-tenant analytics (platform-wide KPIs)
+- Manage the global plan catalog (Starter / Growth / Scale / Enterprise)
+
+---
+
+## 🔐 RBAC (Role-Based Access Control)
+
+### Permission model
+
+Every role is a collection of **module-level permissions**. Each permission can be one of:
+
+| Permission | Effect                                                                  |
+| ---------- | ----------------------------------------------------------------------- |
+| `none`     | Module hidden from sidebar; route blocked.                              |
+| `view`     | Module visible; read-only access.                                       |
+| `execute`  | Module visible; can run analyses, generate content, schedule posts.    |
+| `manage`   | Full CRUD — create, edit, delete, publish.                              |
+
+### Built-in roles (seeded on Organization creation)
+
+1. **Org Owner** — all modules `manage` (created with the org)
+2. **Marketing Manager** — all marketing modules `manage`, AI Testing `view`
+3. **SEO Specialist** — SEO + Analyzer `manage`, Dashboard `view`
+4. **Social Media Manager** — Social + Scheduler + Image + Video `manage`
+5. **Email Marketer** — Email + Scheduler `manage`
+6. **AI QA Analyst** — AI Tool Testing `manage`, Dashboard + Analyzer `view`
+7. **Viewer** — all modules `view` (read-only stakeholder)
+
+The Org Owner can clone, edit, or extend any of these — or build brand-new roles from scratch in the **Role Master** module.
+
+---
+
+## 💳 Subscription & Billing
+
+### Plan catalog (monthly billing)
+
+| Plan         | Price/mo | Seats | AI Credits | Modules unlocked                                  |
+| ------------ | -------- | ----- | ---------- | ------------------------------------------------- |
+| **Starter**  | $49      | 3     | 1,000      | SEO, Social, Scheduler, Email, Dashboard           |
+| **Growth**   | $149     | 10    | 5,000      | All Starter + Image Studio, Video Studio, Analyzer |
+| **Scale**    | $399     | 25    | 20,000     | All Growth + AI Tool Testing                       |
+| **Enterprise**| Contact | Unlimited | Custom | All modules + SSO + dedicated support              |
+
+- 14-day free trial on all paid plans
+- AI credits are consumed by image gen, video gen, content gen, SEO audit, website analysis, AI tool testing
+- Overages billed automatically at the end of each cycle
+- Plan can be upgraded mid-cycle (prorated) or downgraded at the end of the cycle
+
+### Trial & dunning flow
+
+1. New client signs up → 14-day Growth trial activated
+2. Day 12 → automated email reminder to add billing
+3. Day 14 → trial ends; account read-only until billing added
+4. Failed payment → 3-day grace → account suspended (data preserved 90 days)
 
 ---
 
@@ -42,18 +125,15 @@ bun run db:push
 
 ### Environment variables
 
-Create a `.env` file:
+See `.env.example`. The minimum required for production:
 
 ```bash
-# Required for AI features (image gen, content gen, SEO/website analysis, AI tool testing)
 ZAI_API_KEY=your_zai_api_key
-
-# Optional — only if you wire up NextAuth or Prisma
-DATABASE_URL="file:./prisma/dev.db"
+DATABASE_URL="file:./db/custom.db"
 NEXTAUTH_SECRET="generate-with-openssl-rand-base64-32"
 ```
 
-> Without `ZAI_API_KEY`, the AI-powered modules (SEO audit, Website Analyzer, AI Tool Testing, image generation, content generation) will return error toasts. The rest of the app (Dashboard, Scheduler, Email campaign UI, etc.) works without it.
+> Without `ZAI_API_KEY`, the AI-powered modules will return error toasts. The rest of the app works without it.
 
 ---
 
@@ -61,28 +141,9 @@ NEXTAUTH_SECRET="generate-with-openssl-rand-base64-32"
 
 This is Marqai's differentiator. Use it to objectively grade any AI tool — chatbots, image generators, video generators, autonomous agents, RAG systems, code assistants, and voice tools.
 
-**What it evaluates:**
+**What it evaluates:** accuracy & hallucination rate, latency (median/P95/P99), safety & refusal behavior, reasoning, code generation, cost efficiency, output diversity, context handling.
 
-- Accuracy & hallucination rate
-- Latency (median, P95, P99)
-- Safety & refusal behavior
-- Reasoning (multi-step math, logic, planning)
-- Code generation
-- Cost efficiency (token cost per task)
-- Output diversity
-- Context handling
-
-**What you get:**
-
-- Overall score (0-100) and grade (A+ to F)
-- Per-category scores with findings
-- Per-test-case pass/partial/fail with prompt, expected vs. actual behavior, latency
-- Strengths & weaknesses lists
-- Prioritized recommendations (high/medium/low)
-- Benchmark comparison vs. industry averages
-- Score profile radar chart
-
-Try it with: ChatGPT 4o, Claude Sonnet, Gemini Pro, Midjourney, DALL·E 3, Runway Gen-3, GitHub Copilot, Cursor — or any custom AI tool URL.
+**What you get:** overall score (0-100) and grade (A+ to F), per-category scores, per-test-case pass/partial/fail with prompt vs. expected vs. actual, strengths & weaknesses, prioritized recommendations, benchmark comparison vs. industry averages, and a score profile radar chart.
 
 ---
 
@@ -107,15 +168,16 @@ All AI routes use `z-ai-web-dev-sdk` server-side. Never expose the SDK client-si
 src/
 ├── app/
 │   ├── api/marqai/         # Server routes (AI / analyze / send)
-│   ├── globals.css         # Marqai theme (emerald accent, dark mode)
-│   ├── layout.tsx          # Root layout + metadata
+│   ├── globals.css
+│   ├── layout.tsx
 │   └── page.tsx            # Renders <AppShell />
 ├── components/
 │   ├── ui/                 # shadcn/ui (preinstalled)
 │   └── marqai/
 │       ├── app-shell.tsx   # Top-level layout + module router
-│       ├── sidebar.tsx     # Module navigation
-│       ├── topbar.tsx      # Header with search + user menu
+│       ├── auth-screen.tsx # Login / signup / role switch
+│       ├── sidebar.tsx     # Module navigation (permission-gated)
+│       ├── topbar.tsx      # Header with user + role + org + plan
 │       ├── kpi-card.tsx
 │       ├── score-ring.tsx
 │       ├── loading-states.tsx
@@ -129,43 +191,51 @@ src/
 │           ├── email-module.tsx
 │           ├── analyzer-module.tsx
 │           ├── ai-testing-module.tsx
+│           ├── roles-module.tsx       # NEW: Role Master
+│           ├── team-module.tsx        # NEW: Team Management
+│           ├── billing-module.tsx     # NEW: Subscription / Billing
+│           ├── wiki-module.tsx        # NEW: In-app documentation
 │           └── settings-module.tsx
 └── lib/
     └── marqai/
         ├── types.ts        # All shared TypeScript interfaces
-        ├── store.ts        # Zustand store
+        ├── store.ts        # Zustand store (app state + RBAC state)
+        ├── rbac.ts         # NEW: RBAC engine, permission checks
+        ├── saas.ts         # NEW: Plan catalog, usage limits, billing seed
         ├── mock-data.ts    # Seed data + simulated APIs
-        └── utils.ts        # Helpers (formatNumber, scoreColor, etc.)
+        └── utils.ts        # Helpers
+docs/                       # NEW: in-app wiki source markdown
+├── 01-functional.md
+├── 02-technical.md
+├── 03-developer.md
+├── 04-user-sop.md
+├── 05-roles.md
+├── 06-billing.md
+└── 07-api-reference.md
 ```
 
 ---
 
 ## ☁️ Deploy to Vercel
 
-1. Push this repo to GitHub (see below).
-2. Go to <https://vercel.com/new>.
-3. Import the GitHub repo — Vercel auto-detects Next.js.
-4. Add env var `ZAI_API_KEY` (and `DATABASE_URL` / `NEXTAUTH_SECRET` if you wire them up).
-5. Click **Deploy**. Vercel will build with `next build` and give you a `*.vercel.app` URL.
+The repo is already connected to Vercel — every push to `main` triggers an automatic deploy.
 
-### Push to GitHub
+- **Production URL:** https://marqaitools.vercel.app
+- **Vercel dashboard:** https://vercel.com/pmkshars-projects/marqaitools
 
-```bash
-# from your local clone
-git remote add origin https://github.com/pmkshar/marqaitools.git
-git branch -M main
-git add .
-git commit -m "feat: Marqai marketing & AI tool testing suite"
-git push -u origin main
-```
+### Required env vars on Vercel
 
-Then enable the Vercel GitHub integration for auto-deploys on every push to `main`.
+| Var              | Purpose                                                        |
+| ---------------- | -------------------------------------------------------------- |
+| `ZAI_API_KEY`    | Powers all AI features (image gen, content gen, AI tool testing) |
+| `DATABASE_URL`   | Prisma datasource (defaults to `file:./db/custom.db`)          |
+| `NEXTAUTH_SECRET | Session signing secret                                          |
 
 ---
 
 ## 🎨 Design
 
-- **Primary accent:** emerald/teal (`oklch(0.62 0.14 165)`) — avoid blue/indigo per Marqai brand guidelines.
+- **Primary accent:** emerald/teal — avoids blue/indigo per Marqai brand guidelines.
 - **Dark sidebar** with light main content; full dark mode support via CSS variables.
 - **Charts:** Recharts (area, bar, pie, radar).
 - **Icons:** lucide-react.
@@ -175,4 +245,4 @@ Then enable the Vercel GitHub integration for auto-deploys on every push to `mai
 
 ## 📝 License
 
-MIT — built for the Marqai project. Reference inspiration: [coreyhaines31/marketingskills](https://github.com/coreyhaines31/marketingskills).
+MIT — built for the Marqai SaaS platform.

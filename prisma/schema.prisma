@@ -1,8 +1,5 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+// Marqai — Multi-tenant SaaS schema
+// Learn more: https://pris.ly/d/prisma-schema
 
 generator client {
   provider = "prisma-client-js"
@@ -13,20 +10,175 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
+// ============================================================
+// PLATFORM LEVEL
+// ============================================================
+
+/// Platform-level super admin (not bound to any Organization).
+model SuperAdmin {
   id        String   @id @default(cuid())
   email     String   @unique
-  name      String?
+  name      String
+  passwordHash String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
-model Post {
-  id        String   @id @default(cuid())
-  title     String
-  content   String?
-  published Boolean  @default(false)
-  authorId  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+/// Global plan catalog managed by Super Admin.
+model Plan {
+  id              String   @id @default(cuid())
+  name            String   @unique          // "Starter" | "Growth" | "Scale" | "Enterprise"
+  slug            String   @unique
+  pricePerMonth   Int                       // in cents (USD)
+  seats           Int      @default(3)
+  aiCredits       Int      @default(1000)
+  trialDays       Int      @default(14)
+  modules         String   @default("dashboard,seo,social,scheduler,email") // comma-separated
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  subscriptions   Subscription[]
+}
+
+// ============================================================
+// ORGANIZATION (TENANT) LEVEL
+// ============================================================
+
+/// A tenant — typically a marketing agency or in-house marketing team.
+model Organization {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  domain      String?
+  logoUrl     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users       User[]
+  roles       Role[]
+  teams       Team[]
+  subscription Subscription?
+  auditLogs   AuditLog[]
+}
+
+/// A subscription ties an Organization to a Plan with billing cycle info.
+model Subscription {
+  id              String   @id @default(cuid())
+  organizationId  String   @unique
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  planId          String
+  plan            Plan     @relation(fields: [planId], references: [id])
+  status          String   @default("trialing") // "trialing" | "active" | "past_due" | "suspended" | "cancelled"
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime
+  trialEndsAt        DateTime?
+  seatsUsed       Int      @default(1)
+  aiCreditsUsed   Int      @default(0)
+  aiCreditsLimit  Int      @default(1000)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  invoices        Invoice[]
+}
+
+model Invoice {
+  id              String   @id @default(cuid())
+  subscriptionId  String
+  subscription    Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  amountCents     Int
+  currency        String   @default("usd")
+  status          String   @default("paid") // "draft" | "paid" | "void" | "refunded"
+  issuedAt        DateTime @default(now())
+  pdfUrl          String?
+  description     String?
+}
+
+// ============================================================
+// RBAC
+// ============================================================
+
+/// Custom role defined inside an Organization. Org Owner + Super Admin can create unlimited.
+model Role {
+  id              String   @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name            String
+  description     String?
+  /// JSON-stringified map: { moduleId: "none" | "view" | "execute" | "manage" }
+  permissions     String   @default("{}")
+  isSystem        Boolean  @default(false) // true for seeded built-in roles
+  isLocked        Boolean  @default(false) // true for Org Owner role (cannot delete)
+  color           String   @default("emerald")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  users           User[]
+
+  @@unique([organizationId, name])
+}
+
+/// A user belongs to one Organization and has one Role within it.
+model User {
+  id              String   @id @default(cuid())
+  email           String   @unique
+  name            String?
+  passwordHash    String?
+  avatarUrl       String?
+  organizationId  String?
+  organization    Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  roleId          String?
+  role            Role?    @relation(fields: [roleId], references: [id], onDelete: SetNull)
+  status          String   @default("active") // "active" | "invited" | "suspended" | "removed"
+  jobTitle        String?
+  lastLoginAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  teams           TeamMember[]
+  auditLogs       AuditLog[]
+}
+
+/// A team is a sub-grouping inside an Organization (e.g. "SEO Pod", "Paid Ads Pod").
+model Team {
+  id              String   @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name            String
+  description     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  members         TeamMember[]
+}
+
+model TeamMember {
+  id              String   @id @default(cuid())
+  teamId          String
+  team            Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Role name override for this team (optional)
+  teamRole        String   @default("Member") // "Member" | "Lead" | "Viewer"
+  addedAt         DateTime @default(now())
+
+  @@unique([teamId, userId])
+}
+
+// ============================================================
+// AUDIT LOG
+// ============================================================
+
+model AuditLog {
+  id              String   @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId          String?
+  user            User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action          String   // e.g. "role.create", "user.invite", "subscription.upgrade"
+  targetType      String?
+  targetId        String?
+  metadata        String?  // JSON string
+  ipAddress       String?
+  createdAt       DateTime @default(now())
 }

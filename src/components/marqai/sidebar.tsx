@@ -13,31 +13,43 @@ import {
   Settings,
   Sparkles,
   X,
+  Shield,
+  Users,
+  CreditCard,
+  BookOpen,
+  Crown,
 } from "lucide-react";
 import { useMarqai } from "@/lib/marqai/store";
 import { classNames } from "@/lib/marqai/utils";
+import { canAccess } from "@/lib/marqai/rbac";
+import { isModuleInPlan } from "@/lib/marqai/saas";
+import { visibleModulesFor } from "@/lib/marqai/saas-seed";
 import type { ModuleId } from "@/lib/marqai/types";
 
 const NAV: {
   id: ModuleId;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
-  group: "Marketing" | "Creative" | "Outreach" | "Analysis" | "System";
+  group: "System" | "Marketing" | "Creative" | "Outreach" | "Analysis" | "Administration";
   description: string;
 }[] = [
-  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, group: "System", description: "Overview & KPIs" },
-  { id: "seo", label: "SEO Analyzer", icon: Search, group: "Analysis", description: "Audit any URL" },
-  { id: "social", label: "Social Marketing", icon: Share2, group: "Marketing", description: "Multi-platform posting" },
-  { id: "scheduler", label: "Scheduler", icon: CalendarDays, group: "Marketing", description: "Daily content calendar" },
-  { id: "images", label: "Image Studio", icon: ImageIcon, group: "Creative", description: "AI image generation" },
-  { id: "videos", label: "Video Studio", icon: Video, group: "Creative", description: "AI marketing videos" },
-  { id: "email", label: "Email Automation", icon: Mail, group: "Outreach", description: "Campaigns & flows" },
-  { id: "analyzer", label: "Website Analyzer", icon: Globe, group: "Analysis", description: "Deep portal analysis" },
-  { id: "ai-testing", label: "AI Tool Testing", icon: FlaskConical, group: "Analysis", description: "Grade any AI tool" },
-  { id: "settings", label: "Settings", icon: Settings, group: "System", description: "Brand & account" },
+  { id: "dashboard",  label: "Dashboard",         icon: LayoutDashboard, group: "System",         description: "Overview & KPIs" },
+  { id: "seo",        label: "SEO Analyzer",      icon: Search,          group: "Analysis",       description: "Audit any URL" },
+  { id: "social",     label: "Social Marketing",  icon: Share2,          group: "Marketing",      description: "Multi-platform posting" },
+  { id: "scheduler",  label: "Scheduler",         icon: CalendarDays,    group: "Marketing",      description: "Daily content calendar" },
+  { id: "images",     label: "Image Studio",      icon: ImageIcon,       group: "Creative",       description: "AI image generation" },
+  { id: "videos",     label: "Video Studio",      icon: Video,           group: "Creative",       description: "AI marketing videos" },
+  { id: "email",      label: "Email Automation",  icon: Mail,            group: "Outreach",       description: "Campaigns & flows" },
+  { id: "analyzer",   label: "Website Analyzer",  icon: Globe,           group: "Analysis",       description: "Deep portal analysis" },
+  { id: "ai-testing", label: "AI Tool Testing",   icon: FlaskConical,    group: "Analysis",       description: "Grade any AI tool" },
+  { id: "team",       label: "Team Management",   icon: Users,           group: "Administration", description: "Members & seats" },
+  { id: "roles",      label: "Role Master",       icon: Shield,          group: "Administration", description: "Create custom roles" },
+  { id: "billing",    label: "Subscription",      icon: CreditCard,      group: "Administration", description: "Plan & invoices" },
+  { id: "wiki",       label: "Wiki / Docs",       icon: BookOpen,        group: "System",         description: "Functional & technical docs" },
+  { id: "settings",   label: "Settings",          icon: Settings,        group: "System",         description: "Brand & account" },
 ];
 
-const GROUPS = ["System", "Marketing", "Creative", "Outreach", "Analysis"] as const;
+const GROUPS = ["System", "Marketing", "Creative", "Outreach", "Analysis", "Administration"] as const;
 
 export function Sidebar({
   open,
@@ -48,6 +60,9 @@ export function Sidebar({
 }) {
   const activeModule = useMarqai((s) => s.activeModule);
   const setActiveModule = useMarqai((s) => s.setActiveModule);
+  const principal = useMarqai((s) => s.principal);
+
+  const visibleIds = new Set(visibleModulesFor(principal).map((m) => m.id));
 
   return (
     <aside
@@ -66,7 +81,7 @@ export function Sidebar({
           <div className="leading-tight">
             <div className="font-bold text-base tracking-tight">Marqai</div>
             <div className="text-[10px] uppercase tracking-wider text-sidebar-accent-foreground/70">
-              Marketing Suite
+              {principal?.kind === "super_admin" ? "Super Admin" : "Marketing Suite"}
             </div>
           </div>
         </div>
@@ -81,7 +96,7 @@ export function Sidebar({
 
       <nav className="flex-1 overflow-y-auto scroll-thin py-3 px-3 space-y-4">
         {GROUPS.map((group) => {
-          const items = NAV.filter((n) => n.group === group);
+          const items = NAV.filter((n) => n.group === group && visibleIds.has(n.id));
           if (!items.length) return null;
           return (
             <div key={group}>
@@ -113,7 +128,12 @@ export function Sidebar({
                         )}
                       />
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium leading-tight">{item.label}</div>
+                        <div className="text-sm font-medium leading-tight flex items-center gap-1.5">
+                          {item.label}
+                          {item.id === "roles" && principal?.kind === "super_admin" && (
+                            <Crown className="h-3 w-3 text-amber-400" />
+                          )}
+                        </div>
                         <div
                           className={classNames(
                             "text-[11px] leading-tight truncate",
@@ -139,7 +159,7 @@ export function Sidebar({
             <div className="text-xs font-semibold">AI Engine online</div>
           </div>
           <div className="text-[11px] text-sidebar-accent-foreground/70">
-            7 modules active · 3 campaigns scheduled
+            {visibleIds.size} modules unlocked · {principal?.planName ?? "no plan"}
           </div>
         </div>
       </div>
