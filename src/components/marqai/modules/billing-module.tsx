@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useMarqai } from "@/lib/marqai/store";
 import { canAccess } from "@/lib/marqai/rbac";
-import { PLANS, getPlan } from "@/lib/marqai/saas";
+import { PLANS, getPlan, isStripeConfigured } from "@/lib/marqai/saas";
 import type { PlanSlug } from "@/lib/marqai/types";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  CreditCard, Check, Zap, Download, TrendingUp, Calendar, AlertTriangle, Crown,
+  CreditCard, Check, Zap, Download, TrendingUp, Calendar, AlertTriangle, Crown, ExternalLink,
 } from "lucide-react";
 import { toast as sonnerToast } from "sonner";
 
@@ -32,11 +32,14 @@ export function BillingModule() {
   const upgradePlan = useMarqai((s) => s.upgradePlan);
   const downgradePlan = useMarqai((s) => s.downgradePlan);
   const cancelSubscription = useMarqai((s) => s.cancelSubscription);
+  const setStripeCheckout = useMarqai((s) => s.setStripeCheckout);
 
   const canManage = canAccess(principal, "billing", "manage") || principal?.kind === "super_admin";
   const [confirmUpgrade, setConfirmUpgrade] = useState<PlanSlug | null>(null);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [confirmDowngrade, setConfirmDowngrade] = useState<PlanSlug | null>(null);
+  const [stripeLoading, setStripeLoading] = useState<PlanSlug | null>(null);
+  const [portalLoading, setPortalLoading] = useState(false);
 
   const currentPlan = getPlan(subscription.planSlug);
   const planRank: PlanSlug[] = ["starter", "growth", "scale", "enterprise"];
@@ -44,13 +47,45 @@ export function BillingModule() {
 
   const aiPct = (subscription.aiCreditsUsed / subscription.aiCreditsLimit) * 100;
   const seatsPct = (subscription.seatsUsed / subscription.seatsLimit) * 100;
+  const stripeOn = isStripeConfigured();
 
-  function handleUpgrade(slug: PlanSlug) {
-    upgradePlan(slug);
-    sonnerToast.success("Plan upgraded", {
-      description: `You are now on the ${getPlan(slug).name} plan.`,
-    });
+  async function handleUpgrade(slug: PlanSlug) {
     setConfirmUpgrade(null);
+    // If Stripe is configured, redirect to Stripe Checkout
+    if (stripeOn && principal?.organizationId) {
+      setStripeLoading(slug);
+      try {
+        const res = await fetch("/api/stripe/checkout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ planSlug: slug, organizationId: principal.organizationId }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "Checkout failed");
+        if (data.url) {
+          window.location.href = data.url;
+          return;
+        }
+        throw new Error("No checkout URL returned");
+      } catch (e) {
+        sonnerToast.error("Stripe checkout failed — falling back to simulated upgrade", {
+          description: e instanceof Error ? e.message : "",
+        });
+        // Fallback: simulated upgrade
+        upgradePlan(slug);
+        sonnerToast.success("Plan upgraded (simulated)", {
+          description: `You are now on the ${getPlan(slug).name} plan.`,
+        });
+      } finally {
+        setStripeLoading(null);
+      }
+    } else {
+      // No Stripe configured — simulated in-memory upgrade
+      upgradePlan(slug);
+      sonnerToast.success("Plan upgraded", {
+        description: `You are now on the ${getPlan(slug).name} plan.`,
+      });
+    }
   }
 
   function handleDowngrade(slug: PlanSlug) {
@@ -67,6 +102,27 @@ export function BillingModule() {
       description: "Your workspace will become read-only at the end of the current period.",
     });
     setConfirmCancel(false);
+  }
+
+  async function openStripePortal() {
+    if (!principal?.organizationId) return;
+    setPortalLoading(true);
+    try {
+      const res = await fetch("/api/stripe/portal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ organizationId: principal.organizationId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Portal failed");
+      if (data.url) window.location.href = data.url;
+    } catch (e) {
+      sonnerToast.error("Stripe portal unavailable", {
+        description: e instanceof Error ? e.message : "",
+      });
+    } finally {
+      setPortalLoading(false);
+    }
   }
 
   function formatAmount(cents: number) {
@@ -132,6 +188,18 @@ export function BillingModule() {
           </CardContent>
           {canManage && (
             <CardFooter className="flex flex-col gap-2">
+              {stripeOn && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={openStripePortal}
+                  disabled={portalLoading}
+                >
+                  <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
+                  {portalLoading ? "Opening..." : "Stripe billing portal"}
+                </Button>
+              )}
               {subscription.status !== "cancelled" && (
                 <Button
                   variant="outline"
@@ -275,9 +343,10 @@ export function BillingModule() {
                       <Button
                         className="w-full"
                         size="sm"
+                        disabled={stripeLoading === plan.slug}
                         onClick={() => setConfirmUpgrade(plan.slug)}
                       >
-                        <Zap className="h-3.5 w-3.5 mr-1.5" /> Upgrade
+                        {stripeLoading === plan.slug ? "Redirecting to Stripe..." : (<><Zap className="h-3.5 w-3.5 mr-1.5" /> Upgrade{stripeOn ? " via Stripe" : ""}</>)}
                       </Button>
                     ) : isDowngrade ? (
                       <Button
@@ -370,11 +439,21 @@ export function BillingModule() {
             <DialogDescription>
               {confirmUpgrade && (
                 <>
-                  Your subscription will be upgraded immediately. The prorated difference of{" "}
-                  <span className="font-semibold text-foreground">
-                    ${getPlan(confirmUpgrade).pricePerMonth - currentPlan.pricePerMonth}
-                  </span>{" "}
-                  will be charged today.
+                  {stripeOn ? (
+                    <>
+                      You&apos;ll be redirected to Stripe Checkout to complete payment. The prorated difference
+                      of <span className="font-semibold text-foreground">
+                        ${getPlan(confirmUpgrade).pricePerMonth - currentPlan.pricePerMonth}
+                      </span> will be charged today.
+                    </>
+                  ) : (
+                    <>
+                      Your subscription will be upgraded immediately (simulated — no Stripe configured).
+                      The prorated difference of <span className="font-semibold text-foreground">
+                        ${getPlan(confirmUpgrade).pricePerMonth - currentPlan.pricePerMonth}
+                      </span> would be charged today in production.
+                    </>
+                  )}
                 </>
               )}
             </DialogDescription>
@@ -382,7 +461,8 @@ export function BillingModule() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirmUpgrade(null)}>Cancel</Button>
             <Button onClick={() => confirmUpgrade && handleUpgrade(confirmUpgrade)}>
-              <Zap className="h-4 w-4 mr-1.5" /> Confirm upgrade
+              <Zap className="h-4 w-4 mr-1.5" />
+              {stripeOn ? "Continue to Stripe" : "Confirm upgrade"}
             </Button>
           </DialogFooter>
         </DialogContent>

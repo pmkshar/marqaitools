@@ -14,6 +14,9 @@ export type ModuleId =
   | "email"
   | "analyzer"
   | "ai-testing"
+  | "logo-builder"
+  | "website-builder"
+  | "leads-generator"
   | "roles"
   | "team"
   | "billing"
@@ -191,6 +194,7 @@ export interface SeoFinding {
 }
 
 export interface SeoReport {
+  id?: string;
   url: string;
   analyzedAt: string;
   overallScore: number;
@@ -278,6 +282,7 @@ export interface EmailAutomation {
 }
 
 export interface WebsiteAnalysisReport {
+  id?: string;
   url: string;
   analyzedAt: string;
   techStack: { name: string; category: string; confidence: number }[];
@@ -339,4 +344,82 @@ export interface AiToolTestReport {
   weaknesses: string[];
   recommendations: { title: string; description: string; priority: "high" | "medium" | "low" }[];
   benchmarkComparison: { metric: string; thisTool: number; industryAvg: number; unit: string }[];
+}
+
+// ============================================================
+// LOGO BUILDER
+// ============================================================
+
+export type LogoStyle = "minimal" | "wordmark" | "emblem" | "mascot" | "abstract" | "monogram" | "gradient";
+
+export interface LogoAsset {
+  id: string;
+  brandName: string;
+  tagline?: string;
+  industry?: string;
+  style: LogoStyle;
+  palette: string[]; // hex colors
+  /** AI-generated PNG/JPG URL, or empty when using SVG template. */
+  imageUrl?: string;
+  /** Inline SVG string for template-based logos. */
+  svgContent?: string;
+  prompt: string;
+  createdAt: string;
+}
+
+// ============================================================
+// WEBSITE BUILDER
+// ============================================================
+
+export type WebsiteSectionType = "hero" | "features" | "pricing" | "testimonial" | "faq" | "cta" | "footer";
+
+export interface WebsiteSection {
+  type: WebsiteSectionType;
+  html: string;
+}
+
+export interface WebsiteAsset {
+  id: string;
+  brandName: string;
+  product: string;
+  audience?: string;
+  sections: WebsiteSection[];
+  html: string; // full assembled document
+  palette?: string[];
+  publishedUrl?: string;
+  createdAt: string;
+}
+
+// ============================================================
+// LEADS GENERATOR
+// ============================================================
+
+export type LeadStatus = "new" | "contacted" | "qualified" | "won" | "lost";
+
+export interface Lead {
+  id: string;
+  companyName: string;
+  website?: string;
+  industry?: string;
+  size?: "1-10" | "11-50" | "51-200" | "201-1000" | "1000+";
+  location?: string;
+  linkedin?: string;
+  contactName?: string;
+  contactTitle?: string;
+  fitReason?: string;
+  score: number; // 0-100
+  email?: string;
+  status: LeadStatus;
+  createdAt: string;
+}
+
+export interface LeadList {
+  id: string;
+  productName: string;
+  productCategory?: string;
+  targetMarket?: string;
+  criteria?: string;
+  totalLeads: number;
+  leads: Lead[];
+  createdAt: string;
 }

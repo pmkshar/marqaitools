@@ -18,6 +18,9 @@ import {
   CreditCard,
   BookOpen,
   Crown,
+  PenTool,
+  LayoutTemplate,
+  Target,
 } from "lucide-react";
 import { useMarqai } from "@/lib/marqai/store";
 import { classNames } from "@/lib/marqai/utils";
@@ -33,20 +36,23 @@ const NAV: {
   group: "System" | "Marketing" | "Creative" | "Outreach" | "Analysis" | "Administration";
   description: string;
 }[] = [
-  { id: "dashboard",  label: "Dashboard",         icon: LayoutDashboard, group: "System",         description: "Overview & KPIs" },
-  { id: "seo",        label: "SEO Analyzer",      icon: Search,          group: "Analysis",       description: "Audit any URL" },
-  { id: "social",     label: "Social Marketing",  icon: Share2,          group: "Marketing",      description: "Multi-platform posting" },
-  { id: "scheduler",  label: "Scheduler",         icon: CalendarDays,    group: "Marketing",      description: "Daily content calendar" },
-  { id: "images",     label: "Image Studio",      icon: ImageIcon,       group: "Creative",       description: "AI image generation" },
-  { id: "videos",     label: "Video Studio",      icon: Video,           group: "Creative",       description: "AI marketing videos" },
-  { id: "email",      label: "Email Automation",  icon: Mail,            group: "Outreach",       description: "Campaigns & flows" },
-  { id: "analyzer",   label: "Website Analyzer",  icon: Globe,           group: "Analysis",       description: "Deep portal analysis" },
-  { id: "ai-testing", label: "AI Tool Testing",   icon: FlaskConical,    group: "Analysis",       description: "Grade any AI tool" },
-  { id: "team",       label: "Team Management",   icon: Users,           group: "Administration", description: "Members & seats" },
-  { id: "roles",      label: "Role Master",       icon: Shield,          group: "Administration", description: "Create custom roles" },
-  { id: "billing",    label: "Subscription",      icon: CreditCard,      group: "Administration", description: "Plan & invoices" },
-  { id: "wiki",       label: "Wiki / Docs",       icon: BookOpen,        group: "System",         description: "Functional & technical docs" },
-  { id: "settings",   label: "Settings",          icon: Settings,        group: "System",         description: "Brand & account" },
+  { id: "dashboard",        label: "Dashboard",         icon: LayoutDashboard, group: "System",         description: "Overview & KPIs" },
+  { id: "seo",              label: "SEO Analyzer",      icon: Search,          group: "Analysis",       description: "Audit any URL" },
+  { id: "social",           label: "Social Marketing",  icon: Share2,          group: "Marketing",      description: "Multi-platform posting" },
+  { id: "scheduler",        label: "Scheduler",         icon: CalendarDays,    group: "Marketing",      description: "Daily content calendar" },
+  { id: "images",           label: "Image Studio",      icon: ImageIcon,       group: "Creative",       description: "AI image generation" },
+  { id: "videos",           label: "Video Studio",      icon: Video,           group: "Creative",       description: "AI marketing videos" },
+  { id: "logo-builder",     label: "Logo Builder",      icon: PenTool,         group: "Creative",       description: "AI logos + SVG templates" },
+  { id: "website-builder",  label: "Website Builder",   icon: LayoutTemplate,  group: "Creative",       description: "AI landing pages" },
+  { id: "email",            label: "Email Automation",  icon: Mail,            group: "Outreach",       description: "Campaigns & flows" },
+  { id: "leads-generator",  label: "Leads Generator",   icon: Target,          group: "Outreach",       description: "AI prospect lists per product" },
+  { id: "analyzer",         label: "Website Analyzer",  icon: Globe,           group: "Analysis",       description: "Deep portal analysis" },
+  { id: "ai-testing",       label: "AI Tool Testing",   icon: FlaskConical,    group: "Analysis",       description: "Grade any AI tool" },
+  { id: "team",             label: "Team Management",   icon: Users,           group: "Administration", description: "Members & seats" },
+  { id: "roles",            label: "Role Master",       icon: Shield,          group: "Administration", description: "Create custom roles" },
+  { id: "billing",          label: "Subscription",      icon: CreditCard,      group: "Administration", description: "Plan & invoices" },
+  { id: "wiki",             label: "Wiki / Docs",       icon: BookOpen,        group: "System",         description: "Functional & technical docs" },
+  { id: "settings",         label: "Settings",          icon: Settings,        group: "System",         description: "Brand & account" },
 ];
 
 const GROUPS = ["System", "Marketing", "Creative", "Outreach", "Analysis", "Administration"] as const;

@@ -527,3 +527,184 @@ function verifyWebhook(rawBody: string, signature: string, secret: string) {
   return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
 }
 ```
+
+---
+
+## 10. New Module APIs (v2.1)
+
+### 10.1 Generate Logo
+
+```http
+POST /api/marqai/generate-logo
+Content-Type: application/json
+
+{
+  "brandName": "Acme Marketing",
+  "tagline": "Marketing that compounds",
+  "industry": "SaaS · B2B",
+  "style": "minimal",            // minimal|wordmark|monogram|emblem|abstract|gradient
+  "palette": ["#0d9488", "#14b8a6", "#f59e0b"],
+  "mode": "template"             // template|ai
+}
+```
+
+**Response (template mode):**
+```json
+{ "ok": true, "svg": "<svg xmlns=...>...</svg>" }
+```
+
+**Response (AI mode):**
+```json
+{ "ok": true, "url": "https://...", "prompt": "Professional logo for ..." }
+```
+
+| Mode | Cost | Output |
+| --- | --- | --- |
+| `template` | Free | Inline SVG string |
+| `ai` | 8 AI credits | PNG image URL |
+
+### 10.2 Generate Website
+
+```http
+POST /api/marqai/generate-website
+Content-Type: application/json
+
+{
+  "brandName": "Acme Marketing",
+  "product": "AI-powered SEO audit tool for in-house marketing teams",
+  "audience": "B2B marketing teams and founders",
+  "palette": ["#0d9488", "#14b8a6", "#f59e0b"],
+  "tone": "confident, clear, benefit-led"
+}
+```
+
+**Response:**
+```json
+{
+  "ok": true,
+  "sections": [
+    { "type": "hero", "html": "<section>...</section>" },
+    { "type": "features", "html": "..." },
+    { "type": "testimonial", "html": "..." },
+    { "type": "pricing", "html": "..." },
+    { "type": "faq", "html": "..." },
+    { "type": "cta", "html": "..." }
+  ],
+  "html": "<!DOCTYPE html>..."
+}
+```
+
+Cost: 15 AI credits. Output: 6 sections + full assembled HTML document (export-ready).
+
+### 10.3 Generate Leads
+
+```http
+POST /api/marqai/generate-leads
+Content-Type: application/json
+
+{
+  "productName": "AI-powered SEO audit tool",
+  "productCategory": "SaaS",
+  "targetMarket": "India",
+  "criteria": "Mid-market companies with marketing teams of 5+",
+  "count": 12                   // 3-25
+}
+```
+
+**Response:**
+```json
+{
+  "ok": true,
+  "leads": [
+    {
+      "id": "lead-...",
+      "companyName": "Acme Health",
+      "website": "acmehealth.com",
+      "industry": "Healthcare SaaS",
+      "size": "51-200",
+      "location": "Bangalore, India",
+      "linkedin": "linkedin.com/company/acme-health",
+      "contactName": "Priya Menon",
+      "contactTitle": "VP Marketing",
+      "fitReason": "Mid-market SaaS with a 10-person marketing team running paid ads — likely to need SEO tooling.",
+      "score": 82,
+      "email": "priya.menon@acmehealth.com",
+      "status": "new",
+      "createdAt": "2026-07-06T..."
+    }
+  ]
+}
+```
+
+Cost: `max(2, ceil(count/2))` AI credits. Emails are predicted using `first.last@domain` pattern and MUST be verified before sending.
+
+---
+
+## 11. Authentication (NextAuth)
+
+Marqai uses NextAuth v4 with the Credentials provider and JWT sessions (7-day expiry).
+
+```http
+POST /api/auth/callback/credentials
+Content-Type: application/x-www-form-urlencoded
+
+email=user@example.com&password=...&csrfToken=...
+```
+
+After login, the session is stored as an HTTP-only JWT cookie named `next-auth.session-token`. The session payload includes the full `AuthPrincipal` object under `session.principal` (custom claim).
+
+**Demo accounts (no DB required):**
+- `superadmin@marqai.app` / `super1234` — Super Admin
+- `priya@acme-marketing.com` / `demo1234` — Org Owner
+- `arjun@acme-marketing.com` / `demo1234` — Marketing Manager
+- `kavya@acme-marketing.com` / `demo1234` — SEO Specialist
+- `rohan@acme-marketing.com` / `demo1234` — Social Media Manager
+- `meera@acme-marketing.com` / `demo1234` — Email Marketer
+- `vikram@acme-marketing.com` / `demo1234` — AI QA Analyst
+- `nikhil@acme-marketing.com` / `demo1234` — Sales Development Rep
+- `isha@acme-marketing.com` / `demo1234` — Viewer
+
+**Production mode:** Set `NEXTAUTH_SECRET` and point `DATABASE_URL` at a real Postgres/MySQL — NextAuth will check the `User` / `SuperAdmin` tables with bcrypt-hashed passwords.
+
+---
+
+## 12. Billing (Stripe)
+
+### 12.1 Create Checkout Session
+
+```http
+POST /api/stripe/checkout
+Content-Type: application/json
+
+{ "planSlug": "growth", "organizationId": "org-..." }
+```
+
+**Response (200):** `{ "ok": true, "url": "https://checkout.stripe.com/...", "sessionId": "cs_..." }`
+**Response (503):** `{ "error": "Stripe not configured...", "simulated": true }`
+
+### 12.2 Open Billing Portal
+
+```http
+POST /api/stripe/portal
+Content-Type: application/json
+
+{ "organizationId": "org-..." }
+```
+
+**Response:** `{ "ok": true, "url": "https://billing.stripe.com/..." }`
+
+### 12.3 Webhook
+
+```http
+POST /api/stripe/webhook
+Stripe-Signature: t=...,v1=...
+<raw body>
+```
+
+Handles:
+- `checkout.session.completed` → records `stripeCustomerId`, `stripeSubscriptionId`
+- `customer.subscription.updated` → syncs plan, period, status, price
+- `customer.subscription.deleted` → marks subscription as `cancelled`
+- `invoice.payment_succeeded` → records a paid invoice
+
+Configure the endpoint at `https://yourdomain.com/api/stripe/webhook` in your Stripe dashboard.

@@ -313,3 +313,72 @@ Org Owners can view their org's audit log. Super Admins can view all logs.
 - [ ] Integration keys (ZAI_API_KEY, social platform tokens).
 - [ ] GitHub + Vercel deploy config.
 - [ ] Export workspace data.
+
+---
+
+## 9. New Modules (v2.1)
+
+### 9.1 Logo Builder
+
+**Goal:** Let marketing teams generate brand logos in two modes — instant SVG templates (free, vector, editable) or AI-generated PNG logos (uses AI credits).
+
+**User journey:**
+1. User opens Logo Builder from the Creative group in the sidebar.
+2. User enters brand name (required), tagline (optional), industry (optional).
+3. User picks a generation mode:
+   - **Template** (free, instant): generates an SVG logo using one of 6 styles — Minimal, Wordmark, Monogram, Emblem, Abstract, Gradient.
+   - **AI Image** (8 credits): uses ZAI image generation with a logo-specific prompt combining brand, industry, style, and palette.
+4. User picks a palette from 6 presets (Teal, Indigo, Rose, Emerald, Slate, Amber).
+5. User clicks Generate. The logo is saved to the workspace gallery.
+6. From the gallery, user can download (SVG or PNG) or delete the logo.
+
+**Edge cases:**
+- Empty brand name → inline validation error.
+- AI mode failure → toast notification with error message.
+- Template logos are deterministic (same inputs → same SVG output).
+- Logos persist across sessions via Zustand store.
+
+### 9.2 Website Builder
+
+**Goal:** Generate a complete, conversion-optimized landing page in seconds. AI writes hero copy, feature cards, testimonial, pricing tiers, FAQ, and final CTA. Export the result as a self-contained HTML file.
+
+**User journey:**
+1. User opens Website Builder from the Creative group in the sidebar.
+2. User enters brand name (required), product/service description (required), target audience (optional), tone (5 presets), and palette.
+3. User clicks Generate. The AI returns 6 sections as JSON.
+4. The assembled HTML document is saved to the workspace gallery.
+5. User can preview (in an iframe), copy HTML, or download .html.
+
+**Edge cases:**
+- AI may return malformed JSON → API extracts the first balanced JSON object.
+- Section HTML is sandbox-rendered in the preview iframe.
+- Palette is exposed as CSS variables in the generated HTML.
+
+### 9.3 AI Leads Generator
+
+**Goal:** Generate a list of qualified prospect companies for a specific product or service. Each lead includes company name, website, industry, size, location, LinkedIn, contact name/title, fit-reason, and a 0-100 score. Export to CSV.
+
+**User journey:**
+1. User opens Leads Generator from the Outreach group in the sidebar.
+2. User enters product/service description (required), category, target market, criteria (optional), and lead count (3-25).
+3. User clicks Generate. The AI returns a JSON list of leads.
+4. Predicted emails are constructed using the `first.last@domain` pattern.
+5. User can change lead status (new → contacted → qualified → won / lost).
+6. User can export the list as CSV.
+
+**Compliance:**
+- AI-predicted emails are starting points — they must be verified before sending.
+- The UI surfaces a compliance notice about CAN-SPAM / GDPR / DPDP.
+- Mid-market to upper-SMB companies only (no Fortune-100) by design.
+
+### 9.4 Module access control
+
+| Module | Min plan |
+| --- | --- |
+| Logo Builder | Growth |
+| Website Builder | Growth |
+| Leads Generator | Scale |
+
+### 9.5 New built-in role
+
+- **Sales Development Rep** — Leads Generator `manage`, Email `execute`, Dashboard `view`. Added to demo accounts as `nikhil@acme-marketing.com` / `demo1234`.

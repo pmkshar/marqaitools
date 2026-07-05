@@ -330,3 +330,50 @@ No separate CI workflow; Vercel handles build + deploy.
 - Audit logs: exportable to S3 daily.
 - User-uploaded assets (images, videos): stored in Vercel Blob (TODO); 90-day versioning.
 - Disaster recovery: RPO 24h, RTO 4h.
+
+---
+
+## 9. v2.1 Additions
+
+### 9.1 New Prisma models
+
+- `LogoAsset` — tenant-scoped AI/template logos (brandName, tagline, industry, style, palette, imageUrl, svgContent, prompt).
+- `WebsiteAsset` — tenant-scoped landing pages (brandName, product, audience, sections JSON, full HTML, palette, publishedUrl).
+- `LeadList` + `Lead` — tenant-scoped prospect lists (productName, productCategory, targetMarket, criteria, totalLeads) with per-lead records (companyName, website, industry, size, location, linkedin, contactName, contactTitle, fitReason, score, email, status).
+
+### 9.2 New fields on `Subscription`
+
+- `stripeCustomerId` (String?) — populated by Stripe webhook.
+- `stripeSubscriptionId` (String?) — populated by Stripe webhook.
+- `stripePriceId` (String?) — synced on every subscription update.
+- `stripePortalUrl` (String?) — transient URL of the latest billing portal session.
+
+### 9.3 NextAuth wiring
+
+- Provider: `CredentialsProvider` (email + password).
+- Session: JWT (7-day expiry), stored as HTTP-only cookie `next-auth.session-token`.
+- Custom claim: `token.principal` carries the full `AuthPrincipal` object (kind, userId, email, name, organizationId, roleId, permissions matrix, planSlug).
+- Demo fallback: `resolveDemoLogin()` is always tried first. If credentials match a demo account, NextAuth issues a JWT without hitting the database. This means the demo is always usable even without `NEXTAUTH_SECRET` or `DATABASE_URL`.
+- Production path: bcrypt-hashed passwords on `User.passwordHash` / `SuperAdmin.passwordHash`. On success, `User.lastLoginAt` is updated.
+
+### 9.4 Stripe integration
+
+- `POST /api/stripe/checkout` — creates a Stripe Checkout Session in `subscription` mode. Uses `STRIPE_PRICE_ID_<PLAN>` env vars to map plan slugs to Stripe Price IDs. Returns the hosted checkout URL.
+- `POST /api/stripe/portal` — creates a Stripe Billing Portal session for the customer to self-manage card / cancel / view invoices.
+- `POST /api/stripe/webhook` — verifies the Stripe signature, then handles `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`, and `invoice.payment_succeeded` events. Updates the `Subscription` and creates `Invoice` rows.
+- Fallback: if `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, or `STRIPE_PRICE_ID_GROWTH` are unset, the billing UI falls back to a simulated in-memory upgrade (no real charge).
+
+### 9.5 New module APIs
+
+- `POST /api/marqai/generate-logo` — Template mode (instant SVG) or AI mode (8 credits, PNG).
+- `POST /api/marqai/generate-website` — 15 credits, returns 6 sections + full HTML.
+- `POST /api/marqai/generate-leads` — `max(2, ceil(count/2))` credits, returns 3-25 leads with predicted emails.
+
+### 9.6 New module IDs
+
+Added to `ModuleId` type and `MODULE_CATALOG`:
+- `logo-builder` (min plan: Growth)
+- `website-builder` (min plan: Growth)
+- `leads-generator` (min plan: Scale)
+
+All 8 built-in roles updated with explicit permissions for these new modules.

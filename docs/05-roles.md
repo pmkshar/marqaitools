@@ -284,3 +284,44 @@ This role fits an agency where one person handles paid social campaigns and emai
 | Subscription       | manage      | manage    | view     | none     | none       | none      | none  | none   |
 | Wiki / Docs        | manage      | manage    | view     | view     | view       | view      | view  | view   |
 | Settings           | manage      | manage    | view     | view     | view       | view      | view  | view   |
+
+---
+
+## 9. v2.1 Role Updates
+
+### 9.1 New built-in role: Sales Development Rep
+
+| Module | Permission |
+| --- | --- |
+| Dashboard | view |
+| Email | execute |
+| Leads Generator | manage |
+| Wiki / Docs | view |
+| Settings | view |
+
+**Use case:** Sales reps who need to build prospect lists with the AI Leads Generator, then queue outreach emails. They cannot modify billing, roles, or team membership.
+
+**Demo account:** `nikhil@acme-marketing.com` / `demo1234`
+
+### 9.2 New module permissions added to existing roles
+
+| Role | logo-builder | website-builder | leads-generator |
+| --- | --- | --- | --- |
+| Org Owner | manage | manage | manage |
+| Marketing Manager | manage | manage | execute |
+| SEO Specialist | none | none | none |
+| Social Media Manager | execute | none | none |
+| Email Marketer | none | none | execute |
+| AI QA Analyst | none | none | none |
+| Sales Development Rep | none | none | manage |
+| Viewer | view | view | view |
+
+### 9.3 Plan gating
+
+| Module | Min plan |
+| --- | --- |
+| Logo Builder | Growth |
+| Website Builder | Growth |
+| Leads Generator | Scale |
+
+A user with `manage` permission on Leads Generator but on the Growth plan will see a "Upgrade to unlock" screen instead of the module. Plan gating takes precedence over role permissions.

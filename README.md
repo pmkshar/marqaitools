@@ -16,12 +16,15 @@ Marqai is a multi-tenant SaaS platform that bundles SEO analytics, multi-platfor
 | **Scheduler**       | Week-view content calendar + list view. Per-platform scheduling, draft/scheduled/published.        |
 | **Image Studio**    | AI image generation with style presets and aspect ratios. Persistent gallery with previews.        |
 | **Video Studio**    | Script → 3-5 scene storyboard → rendered marketing video. 5 styles, 4 aspect ratios.               |
+| **Logo Builder**    | AI logos + instant SVG wordmark / monogram / emblem / abstract / gradient templates. Download as PNG or SVG. |
+| **Website Builder** | AI landing pages — hero, features, testimonial, pricing, FAQ, CTA. Live preview + export HTML.    |
+| **Leads Generator** | AI prospect lists per product/service — company, contact, fit-reason, 0-100 score. Export CSV.    |
 | **Email Automation**| Campaigns + triggered automations. AI subject/body generation. Simulated send with metrics.        |
 | **Website Analyzer**| Deep portal analysis — tech stack, traffic, sources, keywords, competitors, missing features.      |
 | **AI Tool Testing** | **Dedicated module.** Run 40+ objective test cases against any AI tool. Full report card.          |
 | **Role Master**     | **Super Admin only.** Create unlimited custom roles with per-module permissions.                  |
 | **Team Management** | Invite team members, assign roles, manage seats against your plan.                                |
-| **Subscription**    | View plan, usage, billing cycle, upgrade/downgrade, monthly invoice history.                      |
+| **Subscription**    | View plan, usage, billing cycle, upgrade/downgrade, monthly invoice history. Stripe-ready.        |
 | **Wiki / Docs**     | In-app documentation — functional, technical, role-wise SOPs, developer guide.                    |
 | **Settings**        | Brand identity, integrations, API keys, deploy (GitHub + Vercel).                                  |
 
@@ -72,12 +75,57 @@ Every role is a collection of **module-level permissions**. Each permission can 
 1. **Org Owner** — all modules `manage` (created with the org)
 2. **Marketing Manager** — all marketing modules `manage`, AI Testing `view`
 3. **SEO Specialist** — SEO + Analyzer `manage`, Dashboard `view`
-4. **Social Media Manager** — Social + Scheduler + Image + Video `manage`
-5. **Email Marketer** — Email + Scheduler `manage`
+4. **Social Media Manager** — Social + Scheduler + Image + Video + Logo Builder `manage`
+5. **Email Marketer** — Email + Scheduler `manage`, Leads Generator `execute`
 6. **AI QA Analyst** — AI Tool Testing `manage`, Dashboard + Analyzer `view`
-7. **Viewer** — all modules `view` (read-only stakeholder)
+7. **Sales Development Rep** — Leads Generator `manage`, Email `execute`, Dashboard `view`
+8. **Viewer** — all modules `view` (read-only stakeholder)
 
 The Org Owner can clone, edit, or extend any of these — or build brand-new roles from scratch in the **Role Master** module.
+
+---
+
+## 🔑 Authentication (NextAuth)
+
+Marqai ships with a production-ready NextAuth setup using the **Credentials provider** and **JWT sessions** (7-day expiry).
+
+- **Demo mode (default):** The in-app auth screen accepts any of the 8 demo accounts listed on the sign-in page. No database required.
+- **Production mode:** Set `NEXTAUTH_SECRET` and point `DATABASE_URL` at a real Postgres/MySQL — NextAuth will then check the `User` / `SuperAdmin` tables with **bcrypt-hashed passwords**. Demo accounts still work as a fallback so you never lock yourself out.
+
+Routes:
+- `POST /api/auth/[...nextauth]` — sign-in / sign-out / session
+- `GET  /api/auth/[...nextauth]` — session reader
+
+Env vars:
+```
+NEXTAUTH_SECRET=<openssl rand -base64 32>
+NEXTAUTH_URL=https://yourdomain.com
+```
+
+---
+
+## 💳 Billing (Stripe)
+
+Live subscription billing is wired up through Stripe Checkout + Webhooks + Billing Portal. When Stripe env vars are **not** configured, the billing module falls back to a simulated in-memory upgrade so the demo always works.
+
+**Flow:**
+1. User clicks **Upgrade** in the Subscription module
+2. `POST /api/stripe/checkout` creates a Checkout Session and redirects to Stripe
+3. Stripe redirects back to `/` on success
+4. `POST /api/stripe/webhook` receives `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_succeeded` and syncs the DB
+5. Users can self-manage their card / cancel via `POST /api/stripe/portal` → Stripe Billing Portal
+
+**Env vars:**
+```
+STRIPE_SECRET_KEY=sk_live_xxx
+STRIPE_WEBHOOK_SECRET=whsec_xxx
+STRIPE_PRICE_ID_STARTER=price_xxx
+STRIPE_PRICE_ID_GROWTH=price_xxx
+STRIPE_PRICE_ID_SCALE=price_xxx
+STRIPE_PRICE_ID_ENTERPRISE=price_xxx   # optional (Enterprise is "contact sales")
+```
+
+Configure the webhook endpoint in Stripe → Webhooks → Add endpoint → `https://yourdomain.com/api/stripe/webhook`.
 
 ---
 

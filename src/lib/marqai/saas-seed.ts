@@ -36,7 +36,7 @@ export const DEMO_ROLES: Role[] = [
   {
     id: "org-demo-acme-role-custom-1",
     name: "Performance Marketer",
-    description: "Runs paid social + email + analytics. No SEO or AI testing.",
+    description: "Runs paid social + email + analytics + leads. No SEO or AI testing.",
     scope: "organization",
     permissions: {
       dashboard: "manage",
@@ -47,6 +47,9 @@ export const DEMO_ROLES: Role[] = [
       videos: "none",
       email: "manage",
       analyzer: "view",
+      "logo-builder": "execute",
+      "website-builder": "view",
+      "leads-generator": "execute",
       "ai-testing": "none",
       team: "none",
       roles: "none",
@@ -137,6 +140,15 @@ export const DEMO_USERS: DemoUser[] = [
     lastLoginAt: "2026-07-04T11:30:00.000Z",
   },
   {
+    id: "user-nikhil",
+    email: "nikhil@acme-marketing.com",
+    password: "demo1234",
+    name: "Nikhil Rao",
+    jobTitle: "Sales Development Rep",
+    roleName: "Sales Development Rep",
+    lastLoginAt: "2026-07-05T07:30:00.000Z",
+  },
+  {
     id: "user-isha",
     email: "isha@acme-marketing.com",
     password: "demo1234",
@@ -193,21 +205,21 @@ export const DEMO_TEAM_MEMBERS: TeamMember[] = DEMO_USERS.map((u, idx) => {
 // DEMO SUBSCRIPTION
 // ============================================================
 
-const growthPlan = PLANS.find((p) => p.slug === "growth")!;
+const scalePlan = PLANS.find((p) => p.slug === "scale")!;
 
 export const DEMO_SUBSCRIPTION: Subscription = {
   id: "sub-demo-1",
   organizationId: DEMO_ORG.id,
-  planSlug: "growth" as PlanSlug,
-  planName: growthPlan.name,
+  planSlug: "scale" as PlanSlug,
+  planName: scalePlan.name,
   status: "active",
   currentPeriodStart: "2026-07-01T00:00:00.000Z",
   currentPeriodEnd: "2026-08-01T00:00:00.000Z",
   trialEndsAt: "2025-09-26T00:00:00.000Z",
-  seatsUsed: 7,
-  seatsLimit: growthPlan.seats,
-  aiCreditsUsed: 3142,
-  aiCreditsLimit: growthPlan.aiCredits,
+  seatsUsed: 8,
+  seatsLimit: scalePlan.seats,
+  aiCreditsUsed: 7142,
+  aiCreditsLimit: scalePlan.aiCredits,
 };
 
 // ============================================================
@@ -217,19 +229,19 @@ export const DEMO_SUBSCRIPTION: Subscription = {
 export const DEMO_INVOICES: Invoice[] = [
   {
     id: "inv-2026-07",
-    amountCents: 14900,
+    amountCents: 39900,
     currency: "usd",
     status: "paid",
     issuedAt: "2026-07-01T00:00:00.000Z",
-    description: "Growth plan — July 2026",
+    description: "Scale plan — July 2026",
   },
   {
     id: "inv-2026-06",
-    amountCents: 14900,
+    amountCents: 39900,
     currency: "usd",
     status: "paid",
     issuedAt: "2026-06-01T00:00:00.000Z",
-    description: "Growth plan — June 2026",
+    description: "Scale plan — June 2026",
   },
   {
     id: "inv-2026-05",
@@ -237,7 +249,7 @@ export const DEMO_INVOICES: Invoice[] = [
     currency: "usd",
     status: "paid",
     issuedAt: "2026-05-01T00:00:00.000Z",
-    description: "Growth plan — May 2026",
+    description: "Growth plan — May 2026 (prorated upgrade)",
   },
   {
     id: "inv-2026-04",

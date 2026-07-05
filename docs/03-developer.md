@@ -450,3 +450,66 @@ Before merging to `main`:
 4. **Hardcoding `minPlan: "starter"`** for a module that should be Growth+ → revenue leak.
 5. **Editing shadcn/ui components in place** → makes upgrades painful. Wrap instead.
 6. **Forgetting to update `moduleTitles` in topbar** → blank title for new modules.
+
+---
+
+## 11. v2.1 Developer Notes
+
+### 11.1 Environment variables (new)
+
+Add these to `.env.local` for local development and to Vercel → Project → Settings → Environment Variables for production:
+
+```bash
+# NextAuth (required for production auth)
+NEXTAUTH_SECRET=<openssl rand -base64 32>
+NEXTAUTH_URL=http://localhost:3000  # or https://yourdomain.com
+
+# Stripe (optional — billing module works in simulated mode without these)
+STRIPE_SECRET_KEY=sk_test_xxx or sk_live_xxx
+STRIPE_WEBHOOK_SECRET=whsec_xxx
+STRIPE_PRICE_ID_STARTER=price_xxx
+STRIPE_PRICE_ID_GROWTH=price_xxx
+STRIPE_PRICE_ID_SCALE=price_xxx
+STRIPE_PRICE_ID_ENTERPRISE=price_xxx  # optional
+```
+
+### 11.2 Stripe setup (one-time)
+
+1. Create a Stripe account → https://dashboard.stripe.com
+2. Create Products & Prices for each plan (Starter $49/mo, Growth $149/mo, Scale $399/mo, Enterprise = contact sales). Copy the `price_xxx` IDs into the env vars above.
+3. Add a webhook endpoint: Stripe → Developers → Webhooks → Add endpoint → URL `https://yourdomain.com/api/stripe/webhook` → events to send: `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_succeeded`. Copy the signing secret `whsec_xxx` into `STRIPE_WEBHOOK_SECRET`.
+4. For local webhook testing: `stripe listen --forward-to localhost:3000/api/stripe/webhook`.
+
+### 11.3 NextAuth setup (one-time)
+
+1. Generate a secret: `openssl rand -base64 32`
+2. Set `NEXTAUTH_SECRET` and `NEXTAUTH_URL` in `.env.local` and Vercel env vars.
+3. (Optional) Seed users via Prisma. Example script:
+
+```ts
+import bcrypt from "bcryptjs";
+import { db } from "@/lib/db";
+
+await db.user.create({
+  data: {
+    email: "owner@acme.com",
+    name: "Owner",
+    passwordHash: bcrypt.hashSync("password123", 10),
+    organization: { create: { name: "Acme", slug: "acme" } },
+    role: { create: { name: "Org Owner", permissions: JSON.stringify({...}) } },
+  },
+});
+```
+
+### 11.4 Adding a new module (checklist)
+
+1. Add the module ID to `ModuleId` in `src/lib/marqai/types.ts`.
+2. Add the module to `MODULE_CATALOG` in `src/lib/marqai/saas.ts` (set the `minPlan`).
+3. Add the module to all relevant plans' `modules` array in `PLANS`.
+4. Add explicit permissions for the new module to every entry in `BUILT_IN_ROLES`.
+5. Add a nav entry in `src/components/marqai/sidebar.tsx` (group + icon + description).
+6. Add a case in `renderModule()` in `src/components/marqai/app-shell.tsx`.
+7. Create the module component in `src/components/marqai/modules/<name>-module.tsx`.
+8. Add state + actions to `src/lib/marqai/store.ts`.
+9. (If AI-powered) Add an API route in `src/app/api/marqai/<name>/route.ts`.
+10. Add a Permission Matrix entry to the Role Master UI so admins can grant access.

@@ -22,6 +22,11 @@ import type {
   PermissionMatrix,
   PermissionLevel,
   PlanSlug,
+  LogoAsset,
+  WebsiteAsset,
+  LeadList,
+  Lead,
+  LeadStatus,
 } from "./types";
 import {
   seedAccounts,
@@ -93,6 +98,7 @@ interface MarqaiState {
   upgradePlan: (slug: PlanSlug) => void;
   downgradePlan: (slug: PlanSlug) => void;
   cancelSubscription: () => void;
+  setStripeCheckout: (customerId: string, subscriptionId: string, priceId: string) => void;
 
   // ---------- MARKETING DOMAIN ----------
   accounts: SocialAccount[];
@@ -126,6 +132,22 @@ interface MarqaiState {
 
   aiTestReports: AiToolTestReport[];
   addAiTestReport: (r: AiToolTestReport) => void;
+
+  // ---------- LOGO BUILDER ----------
+  logos: LogoAsset[];
+  addLogo: (l: LogoAsset) => void;
+  deleteLogo: (id: string) => void;
+
+  // ---------- WEBSITE BUILDER ----------
+  websites: WebsiteAsset[];
+  addWebsite: (w: WebsiteAsset) => void;
+  deleteWebsite: (id: string) => void;
+
+  // ---------- LEADS GENERATOR ----------
+  leadLists: LeadList[];
+  addLeadList: (ll: LeadList) => void;
+  deleteLeadList: (id: string) => void;
+  updateLeadStatus: (listId: string, leadId: string, status: LeadStatus) => void;
 }
 
 export const useMarqai = create<MarqaiState>()(
@@ -278,6 +300,25 @@ export const useMarqai = create<MarqaiState>()(
           subscription: { ...s.subscription, status: "cancelled" },
         })),
 
+      setStripeCheckout: (_customerId, _subscriptionId, _priceId) =>
+        set((s) => ({
+          subscription: {
+            ...s.subscription,
+            status: "active",
+          } as Subscription,
+          invoices: [
+            {
+              id: `inv-stripe-${Date.now()}`,
+              amountCents: 0, // populated by webhook
+              currency: "usd",
+              status: "paid",
+              issuedAt: new Date().toISOString(),
+              description: `Stripe checkout · ${_priceId}`,
+            },
+            ...s.invoices,
+          ],
+        })),
+
       // ---------- MARKETING DOMAIN ----------
       accounts: seedAccounts,
       toggleAccount: (id) =>
@@ -346,6 +387,37 @@ export const useMarqai = create<MarqaiState>()(
       aiTestReports: seedAiTestReports,
       addAiTestReport: (r) =>
         set((s) => ({ aiTestReports: [r, ...s.aiTestReports] })),
+
+      // ---------- LOGO BUILDER ----------
+      logos: [],
+      addLogo: (l) => set((s) => ({ logos: [l, ...s.logos] })),
+      deleteLogo: (id) =>
+        set((s) => ({ logos: s.logos.filter((x) => x.id !== id) })),
+
+      // ---------- WEBSITE BUILDER ----------
+      websites: [],
+      addWebsite: (w) => set((s) => ({ websites: [w, ...s.websites] })),
+      deleteWebsite: (id) =>
+        set((s) => ({ websites: s.websites.filter((x) => x.id !== id) })),
+
+      // ---------- LEADS GENERATOR ----------
+      leadLists: [],
+      addLeadList: (ll) => set((s) => ({ leadLists: [ll, ...s.leadLists] })),
+      deleteLeadList: (id) =>
+        set((s) => ({ leadLists: s.leadLists.filter((x) => x.id !== id) })),
+      updateLeadStatus: (listId, leadId, status) =>
+        set((s) => ({
+          leadLists: s.leadLists.map((ll) =>
+            ll.id === listId
+              ? {
+                  ...ll,
+                  leads: ll.leads.map((l) =>
+                    l.id === leadId ? { ...l, status } : l,
+                  ),
+                }
+              : ll,
+          ),
+        })),
     }),
     {
       name: "marqai-session-v2",
@@ -356,6 +428,9 @@ export const useMarqai = create<MarqaiState>()(
         roles: s.roles,
         teamMembers: s.teamMembers,
         subscription: s.subscription,
+        logos: s.logos,
+        websites: s.websites,
+        leadLists: s.leadLists,
       }),
     },
   ),

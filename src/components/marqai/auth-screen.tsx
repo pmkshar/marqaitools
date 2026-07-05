@@ -7,10 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Sparkles, Building2, ShieldCheck, ArrowRight, Eye, EyeOff } from "lucide-react";
-import { PLANS } from "@/lib/marqai/saas";
+import { Sparkles, Building2, ShieldCheck, ArrowRight, Eye, EyeOff, CreditCard } from "lucide-react";
+import { PLANS, isStripeConfigured } from "@/lib/marqai/saas";
 import { DEMO_USERS, DEMO_SUPER_ADMIN } from "@/lib/marqai/saas-seed";
-import { useToast } from "@/hooks/use-toast";
 import { toast as sonnerToast } from "sonner";
 
 export function AuthScreen() {
@@ -74,12 +73,14 @@ export function AuthScreen() {
             Marketing teams ship faster with Marqai.
           </h1>
           <p className="text-white/85 text-lg leading-relaxed max-w-md">
-            SEO audits, multi-platform social, AI image & video, email campaigns, website analysis, and a dedicated AI tool testing module — all in one multi-tenant SaaS workspace.
+            SEO audits, multi-platform social, AI image & video, logo & website builders, AI leads generator, email campaigns, website analysis, and a dedicated AI tool testing module — all in one multi-tenant SaaS workspace.
           </p>
           <div className="grid grid-cols-2 gap-3 max-w-md">
             {[
               { icon: Building2, label: "Multi-tenant" },
               { icon: ShieldCheck, label: "Role-based access" },
+              { icon: CreditCard, label: isStripeConfigured() ? "Stripe billing" : "Subscription-ready" },
+              { icon: Sparkles, label: "AI-powered" },
             ].map((f) => (
               <div key={f.label} className="flex items-center gap-2 rounded-lg bg-white/10 backdrop-blur px-3 py-2">
                 <f.icon className="h-4 w-4" />
@@ -209,7 +210,9 @@ export function AuthScreen() {
                   <Button
                     className="w-full"
                     onClick={() => sonnerToast.info("Trial signup",
-                      { description: "In production this would create your Organization and email a magic link." })}
+                      { description: isStripeConfigured()
+                        ? "In production this creates your Organization, emails a magic link, and sends you to Stripe Checkout after the trial."
+                        : "In production this creates your Organization and emails a magic link. Stripe checkout enables when you add STRIPE_* env vars." })}
                   >
                     Create workspace
                     <ArrowRight className="h-4 w-4 ml-1.5" />
