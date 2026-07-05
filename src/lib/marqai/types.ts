@@ -1,0 +1,202 @@
+// Marqai — Shared Types
+
+export type ModuleId =
+  | "dashboard"
+  | "seo"
+  | "social"
+  | "scheduler"
+  | "images"
+  | "videos"
+  | "email"
+  | "analyzer"
+  | "ai-testing"
+  | "settings";
+
+export type Platform =
+  | "twitter"
+  | "linkedin"
+  | "facebook"
+  | "instagram"
+  | "youtube"
+  | "tiktok"
+  | "pinterest";
+
+export interface SocialAccount {
+  id: string;
+  platform: Platform;
+  handle: string;
+  followers: number;
+  engagementRate: number;
+  connected: boolean;
+}
+
+export interface ScheduledPost {
+  id: string;
+  title: string;
+  content: string;
+  platforms: Platform[];
+  scheduledAt: string;
+  status: "draft" | "scheduled" | "published" | "failed";
+  hashtags: string[];
+  mediaType: "text" | "image" | "video";
+  author: string;
+}
+
+export interface SeoFinding {
+  id: string;
+  category: "critical" | "warning" | "info" | "passed";
+  title: string;
+  description: string;
+  recommendation: string;
+}
+
+export interface SeoReport {
+  url: string;
+  analyzedAt: string;
+  overallScore: number;
+  scores: {
+    performance: number;
+    seo: number;
+    accessibility: number;
+    bestPractices: number;
+    content: number;
+    mobile: number;
+  };
+  meta: {
+    title: string;
+    titleLength: number;
+    description: string;
+    descriptionLength: number;
+    canonical?: string;
+    robots?: string;
+    ogTitle?: string;
+    ogDescription?: string;
+    ogImage?: string;
+  };
+  headings: { h1: string[]; h2: string[]; h3: string[] };
+  keywords: { keyword: string; density: number; count: number }[];
+  backlinks: number;
+  domainAuthority: number;
+  pageAuthority: number;
+  loadTimeMs: number;
+  pageSizeKb: number;
+  findings: SeoFinding[];
+  missingAnalytics: string[];
+  topPages: { url: string; traffic: number; change: number }[];
+  competitors: { domain: string; overlap: number; traffic: number }[];
+}
+
+export interface GeneratedImage {
+  id: string;
+  prompt: string;
+  url: string;
+  size: string;
+  style: string;
+  createdAt: string;
+  status: "queued" | "generating" | "done" | "failed";
+}
+
+export interface VideoProject {
+  id: string;
+  title: string;
+  script: string;
+  durationSec: number;
+  style: "promo" | "explainer" | "social-short" | "tutorial" | "testimonial";
+  aspectRatio: "16:9" | "9:16" | "1:1" | "4:5";
+  status: "queued" | "rendering" | "done" | "failed";
+  thumbnailUrl?: string;
+  scenes: { index: number; text: string; visual: string }[];
+  createdAt: string;
+}
+
+export interface EmailCampaign {
+  id: string;
+  name: string;
+  subject: string;
+  previewText: string;
+  fromName: string;
+  bodyHtml: string;
+  audience: string;
+  recipients: number;
+  status: "draft" | "scheduled" | "sending" | "sent" | "aborted";
+  scheduledAt?: string;
+  sentAt?: string;
+  openRate?: number;
+  clickRate?: number;
+  unsubscribeRate?: number;
+  createdAt: string;
+}
+
+export interface EmailAutomation {
+  id: string;
+  name: string;
+  trigger: string;
+  steps: { id: string; type: "email" | "wait" | "condition"; label: string; delay?: string }[];
+  active: boolean;
+  enrolled: number;
+  conversionRate: number;
+}
+
+export interface WebsiteAnalysisReport {
+  url: string;
+  analyzedAt: string;
+  techStack: { name: string; category: string; confidence: number }[];
+  performance: {
+    lcp: number;
+    cls: number;
+    fcp: number;
+    ttfb: number;
+    speedIndex: number;
+    tbt: number;
+  };
+  traffic: {
+    monthlyVisits: number;
+    visitsChange: number;
+    avgVisitDuration: string;
+    bounceRate: number;
+    pagesPerVisit: number;
+  };
+  trafficByCountry: { country: string; code: string; share: number }[];
+  trafficSources: { source: string; share: number; visits: number }[];
+  topPages: { url: string; visits: number; share: number }[];
+  keywords: { keyword: string; position: number; volume: number; intent: string }[];
+  competitors: { domain: string; overlap: number; visits: number }[];
+  missingFeatures: { feature: string; severity: "high" | "medium" | "low"; impact: string }[];
+  recommendations: { title: string; description: string; priority: number }[];
+  socialPresence: { platform: Platform; handle: string; followers: number; activity: string }[];
+  securityScore: number;
+  mobileScore: number;
+}
+
+export interface AiTestResult {
+  category: string;
+  score: number;
+  maxScore: number;
+  findings: string[];
+}
+
+export interface AiToolTestReport {
+  id: string;
+  toolName: string;
+  toolUrl: string;
+  toolType: "chatbot" | "image-gen" | "video-gen" | "agent" | "rag" | "code-assistant" | "voice" | "other";
+  testedAt: string;
+  overallScore: number;
+  grade: "A+" | "A" | "B" | "C" | "D" | "F";
+  summary: string;
+  categories: AiTestResult[];
+  testCases: {
+    id: string;
+    name: string;
+    prompt: string;
+    expectedBehavior: string;
+    actualBehavior: string;
+    status: "pass" | "partial" | "fail";
+    latencyMs: number;
+    notes: string;
+  }[];
+  strengths: string[];
+  weaknesses: string[];
+  recommendations: { title: string; description: string; priority: "high" | "medium" | "low" }[];
+  benchmarkComparison: { metric: string; thisTool: number; industryAvg: number; unit: string }[];
+}
