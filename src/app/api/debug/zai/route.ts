@@ -18,7 +18,7 @@ import { extractChatContent } from "@/lib/zai-response";
 import ZAI from "z-ai-web-dev-sdk";
 
 export const runtime = "nodejs";
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 const BIGMODEL_CN_BASE = "https://open.bigmodel.cn/api/paas/v4";
 
@@ -122,59 +122,85 @@ export async function GET() {
  * Try the same API key against the BigModel China deployment. If it
  * works, the user's key was issued by BigModel China and they should
  * set ZAI_BASE_URL=https://open.bigmodel.cn/api/paas/v4 on Vercel.
+ *
+ * Also tries multiple model names so we can identify which one the
+ * key actually supports (in case the default glm-4-flash has been
+ * renamed or is not activated on the user's account).
  */
 async function tryBigModelFallback(): Promise<any> {
   const apiKey = process.env.ZAI_API_KEY ?? "";
-  const model = getDefaultModel();
   if (!apiKey) return null;
 
-  try {
-    const ZAICtor = ZAI as any;
-    const fallbackClient = new ZAICtor({
-      baseUrl: BIGMODEL_CN_BASE,
-      apiKey,
-    });
-    const raw = await fallbackClient.chat.completions.create({
-      model,
-      messages: [
-        { role: "system", content: "Reply with exactly: PONG" },
-        { role: "user", content: "ping" },
-      ],
-      max_tokens: 10,
-      temperature: 0,
-    });
-    const extracted = extractChatContent(raw);
-    return {
-      endpoint: BIGMODEL_CN_BASE,
-      model,
-      status: extracted.error ? "error" : "ok",
-      replyPreview: extracted.content.slice(0, 100),
-      httpOk: true,
-      extractionError: extracted.error,
-      rawResponsePreview: extracted.rawPreview,
-      recommendation:
-        extracted.content && !extracted.error
-          ? "WORKS on BigModel China! Your API key was issued by open.bigmodel.cn, not api.z.ai. " +
-            "Fix: set ZAI_BASE_URL=" + BIGMODEL_CN_BASE + " in Vercel env vars, then Redeploy."
-          : "Also failed on BigModel China — the key is likely invalid, expired, or has no chat-completions access. " +
-            "Get a fresh key from https://z.ai → API Keys OR https://open.bigmodel.cn → API Keys.",
-    };
-  } catch (e: any) {
-    const msg = e?.message ?? String(e);
-    return {
-      endpoint: BIGMODEL_CN_BASE,
-      model,
-      status: "error",
-      httpOk: false,
-      errorMessage: msg,
-      recommendation: msg.includes("401") || msg.includes("unauthorized")
-        ? "BigModel China returned 401. Your key is NOT a BigModel China key either. " +
-          "Get a fresh key from https://z.ai → API Keys (international) or " +
-          "https://open.bigmodel.cn → API Keys (China)."
-        : "Also failed on BigModel China with: " + msg.slice(0, 200) +
-          ". The key is likely invalid or has no chat-completions access.",
-    };
+  // Try a list of likely-valid model names. Order: free/cheap first.
+  const modelsToTry = [
+    "glm-4-flash",
+    "glm-4-flashx",
+    "glm-4-air",
+    "glm-4-airx",
+    "glm-4",
+    "glm-4-long",
+    "glm-4-plus",
+    "glm-4.5",
+    "glm-4.6",
+  ];
+
+  // First, confirm the key works at all on BigModel China (any model).
+  // Then run a broader model probe to find a working model name.
+  const ZAICtor = ZAI as any;
+  const probeResults: any[] = [];
+
+  for (const model of modelsToTry) {
+    try {
+      const client = new ZAICtor({
+        baseUrl: BIGMODEL_CN_BASE,
+        apiKey,
+      });
+      const raw = await client.chat.completions.create({
+        model,
+        messages: [
+          { role: "system", content: "Reply with exactly: PONG" },
+          { role: "user", content: "ping" },
+        ],
+        max_tokens: 10,
+        temperature: 0,
+      });
+      const extracted = extractChatContent(raw);
+      const worked = !extracted.error && extracted.content.trim().length > 0;
+      probeResults.push({
+        model,
+        ok: worked,
+        reply: extracted.content.slice(0, 50),
+        error: extracted.error,
+      });
+      if (worked) break; // first working model is enough
+    } catch (e: any) {
+      const msg = e?.message ?? String(e);
+      probeResults.push({
+        model,
+        ok: false,
+        error: msg.slice(0, 200),
+      });
+    }
   }
+
+  const firstOk = probeResults.find((r) => r.ok);
+  return {
+    endpoint: BIGMODEL_CN_BASE,
+    probedModels: probeResults,
+    workingModel: firstOk?.model ?? null,
+    recommendation: firstOk
+      ? `WORKS on BigModel China with model '${firstOk.model}'! ` +
+        "Fix: in Vercel env vars set BOTH:\n" +
+        `  ZAI_BASE_URL=${BIGMODEL_CN_BASE}\n` +
+        `  ZAI_MODEL=${firstOk.model}\n` +
+        "Then trigger a Redeploy."
+      : "All model probes failed on BigModel China. The key is likely:\n" +
+        "  (a) Invalid/expired — get a fresh key from https://open.bigmodel.cn → API Keys\n" +
+        "  (b) A free-tier key with NO models activated — log into the Z.AI / BigModel\n" +
+        "      dashboard and check 'Model Garden' / 'API Keys' to confirm chat-completions\n" +
+        "      is enabled for at least one model.\n" +
+        "  (c) A key from a completely different deployment (custom enterprise endpoint).",
+  };
 }
 
 function classifyError(msg: string): string {
