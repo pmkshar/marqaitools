@@ -6,12 +6,21 @@
 // Also returns the FULL raw response object from the Z.AI API so you
 // can see exactly what shape it returns — useful for diagnosing cases
 // where the call succeeds but content extraction fails.
+//
+// If the primary endpoint returns code 1211 "Unknown Model", this
+// endpoint ALSO tries the BigModel China deployment
+// (https://open.bigmodel.cn/api/paas/v4) with the same key — because
+// Z.AI international and BigModel China use SEPARATE API keys, and a
+// 1211 on api.z.ai often means the key was issued by BigModel China.
 import { NextResponse } from "next/server";
 import { getZai, getZaiDiagnostics, resetZaiCache, getDefaultModel } from "@/lib/zai";
 import { extractChatContent } from "@/lib/zai-response";
+import ZAI from "z-ai-web-dev-sdk";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
+
+const BIGMODEL_CN_BASE = "https://open.bigmodel.cn/api/paas/v4";
 
 export async function GET() {
   const diag = getZaiDiagnostics();
@@ -21,6 +30,7 @@ export async function GET() {
     config: diag,
     connectivity: null as any,
     error: null as any,
+    fallbackTest: null as any,
   };
 
   // Don't attempt the call if there's no key.
@@ -82,6 +92,12 @@ export async function GET() {
             "Check rawResponsePreview and rawResponseKeys to see what the API actually returned. " +
             "If the shape is new, update src/lib/zai-response.ts to handle it.",
       };
+
+      // If we got a sparse 500 or 1211, try the BigModel China deployment
+      // as a fallback to see if the key was issued there.
+      if (isSparse500 || errMsg.includes('"code":"1211"') || /unknown model/i.test(errMsg)) {
+        result.fallbackTest = await tryBigModelFallback();
+      }
     }
   } catch (e: any) {
     const msg = e?.message ?? String(e);
@@ -91,21 +107,89 @@ export async function GET() {
       message: msg,
       hint: classifyError(msg),
     };
+
+    // If the request failed with 1211 (Unknown Model), the key might be
+    // for the BigModel China deployment. Auto-test that to confirm.
+    if (msg.includes('"code":"1211"') || /unknown model/i.test(msg)) {
+      result.fallbackTest = await tryBigModelFallback();
+    }
   }
 
   return NextResponse.json(result, { status: 200 });
 }
 
+/**
+ * Try the same API key against the BigModel China deployment. If it
+ * works, the user's key was issued by BigModel China and they should
+ * set ZAI_BASE_URL=https://open.bigmodel.cn/api/paas/v4 on Vercel.
+ */
+async function tryBigModelFallback(): Promise<any> {
+  const apiKey = process.env.ZAI_API_KEY ?? "";
+  const model = getDefaultModel();
+  if (!apiKey) return null;
+
+  try {
+    const ZAICtor = ZAI as any;
+    const fallbackClient = new ZAICtor({
+      baseUrl: BIGMODEL_CN_BASE,
+      apiKey,
+    });
+    const raw = await fallbackClient.chat.completions.create({
+      model,
+      messages: [
+        { role: "system", content: "Reply with exactly: PONG" },
+        { role: "user", content: "ping" },
+      ],
+      max_tokens: 10,
+      temperature: 0,
+    });
+    const extracted = extractChatContent(raw);
+    return {
+      endpoint: BIGMODEL_CN_BASE,
+      model,
+      status: extracted.error ? "error" : "ok",
+      replyPreview: extracted.content.slice(0, 100),
+      httpOk: true,
+      extractionError: extracted.error,
+      rawResponsePreview: extracted.rawPreview,
+      recommendation:
+        extracted.content && !extracted.error
+          ? "WORKS on BigModel China! Your API key was issued by open.bigmodel.cn, not api.z.ai. " +
+            "Fix: set ZAI_BASE_URL=" + BIGMODEL_CN_BASE + " in Vercel env vars, then Redeploy."
+          : "Also failed on BigModel China — the key is likely invalid, expired, or has no chat-completions access. " +
+            "Get a fresh key from https://z.ai → API Keys OR https://open.bigmodel.cn → API Keys.",
+    };
+  } catch (e: any) {
+    const msg = e?.message ?? String(e);
+    return {
+      endpoint: BIGMODEL_CN_BASE,
+      model,
+      status: "error",
+      httpOk: false,
+      errorMessage: msg,
+      recommendation: msg.includes("401") || msg.includes("unauthorized")
+        ? "BigModel China returned 401. Your key is NOT a BigModel China key either. " +
+          "Get a fresh key from https://z.ai → API Keys (international) or " +
+          "https://open.bigmodel.cn → API Keys (China)."
+        : "Also failed on BigModel China with: " + msg.slice(0, 200) +
+          ". The key is likely invalid or has no chat-completions access.",
+    };
+  }
+}
+
 function classifyError(msg: string): string {
   const m = msg.toLowerCase();
   if (m.includes('"code":"1211"') || m.includes("unknown model")) {
-    return "Z.AI returned code 1211 'Unknown Model'. The model name set in " +
-      "ZAI_MODEL (or the default) is not available on your Z.AI plan. " +
-      "The current default is glm-4-flash (free tier, available on every " +
-      "account). If you override ZAI_MODEL, use a model your plan supports: " +
-      "free tier → glm-4-flash, glm-4-flashx; paid tier → glm-4, glm-4-air, " +
-      "glm-4-plus, glm-4-long, glm-4.5, glm-4.6. After changing the env var " +
-      "on Vercel, trigger a Redeploy.";
+    return "Z.AI returned code 1211 'Unknown Model'. This usually means ONE of:\n" +
+      "  (a) The model name is not available on your Z.AI plan — but the default\n" +
+      "      glm-4-flash is free and available on every account, so this is unlikely\n" +
+      "      if you're using the default.\n" +
+      "  (b) Your API key was issued by a DIFFERENT Z.AI deployment (most commonly\n" +
+      "      open.bigmodel.cn / BigModel China) and is being used against api.z.ai.\n" +
+      "      Keys are NOT shared between deployments. Check the 'fallbackTest' field\n" +
+      "      in this response — if it works on BigModel China, set\n" +
+      "      ZAI_BASE_URL=https://open.bigmodel.cn/api/paas/v4 on Vercel and Redeploy.\n" +
+      "  (c) The key is invalid / expired. Get a fresh one from https://z.ai → API Keys.";
   }
   if (m.includes('"code":"500"') || m.includes("'code':'500'")) {
     return "Z.AI returned a sparse {\"error\":{\"code\":\"500\"}} envelope. " +
