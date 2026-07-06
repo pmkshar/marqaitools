@@ -15,6 +15,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getZai } from "@/lib/zai";
 import { extractLeads } from "@/lib/json-utils";
+import { extractChatContent } from "@/lib/zai-response";
 import type { Lead } from "@/lib/marqai/types";
 
 export const runtime = "nodejs";
@@ -63,6 +64,7 @@ Vary industries and sizes. Use real-sounding (not generic) company names. Do NOT
     let aiRaw = "";
     let aiError: string | null = null;
     let rawLeads: any[] = [];
+    let diagnosticShape = "";
 
     try {
       const zai = await getZai();
@@ -74,7 +76,14 @@ Vary industries and sizes. Use real-sounding (not generic) company names. Do NOT
         temperature: 0.85,
         max_tokens: 4096,
       });
-      aiRaw = completion.choices?.[0]?.message?.content ?? "";
+      // Defensive content extraction — handles different response shapes
+      // across Z.AI deployments (api.z.ai vs open.bigmodel.cn etc.)
+      const extracted = extractChatContent(completion);
+      aiRaw = extracted.content;
+      diagnosticShape = extracted.shape;
+      if (extracted.error) {
+        aiError = `${extracted.error} (shape=${extracted.shape}, preview=${extracted.rawPreview})`;
+      }
       rawLeads = extractLeads(aiRaw);
     } catch (e) {
       aiError = e instanceof Error ? e.message : String(e);
@@ -99,7 +108,12 @@ Vary industries and sizes. Use real-sounding (not generic) company names. Do NOT
           temperature: 0.7,
           max_tokens: 3000,
         });
-        aiRaw = retry.choices?.[0]?.message?.content ?? "";
+        const extracted = extractChatContent(retry);
+        aiRaw = extracted.content;
+        diagnosticShape = extracted.shape;
+        if (extracted.error) {
+          aiError = `${extracted.error} (shape=${extracted.shape}, preview=${extracted.rawPreview})`;
+        }
         rawLeads = extractLeads(aiRaw);
       } catch (e) {
         aiError = e instanceof Error ? e.message : String(e);
@@ -131,13 +145,22 @@ Vary industries and sizes. Use real-sounding (not generic) company names. Do NOT
     // If AI failed entirely, return mock leads so the UI works.
     if (leads.length === 0) {
       const mockLeads = generateMockLeads(body, count);
+      const diag = aiError
+        ? `AI error: ${aiError}`
+        : `AI returned no parseable leads (response shape=${diagnosticShape || "unknown"}, content length=${aiRaw.length}). Preview: ${aiRaw.slice(0, 200) || "(empty)"}`;
       return NextResponse.json({
         ok: true,
         leads: mockLeads,
         source: "fallback",
-        warning: aiError
-          ? `AI service unavailable (${aiError}). Showing sample leads for demonstration.`
-          : `AI returned no parseable leads. Showing sample leads. Raw preview: ${aiRaw.slice(0, 200)}`,
+        warning: `AI service unavailable — showing sample leads. ${diag}`,
+        diagnostic: {
+          shape: diagnosticShape,
+          contentLength: aiRaw.length,
+          contentPreview: aiRaw.slice(0, 300),
+          error: aiError,
+          endpoint: process.env.ZAI_BASE_URL ?? "https://api.z.ai/api/paas/v4",
+          hasKey: Boolean(process.env.ZAI_API_KEY),
+        },
       });
     }
 

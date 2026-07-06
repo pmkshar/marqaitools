@@ -2,8 +2,13 @@
 // Diagnostic endpoint — checks ZAI configuration and runs a tiny
 // echo chat completion to verify the API key + base URL work end-to-end.
 // Safe to expose: only returns masked key info, never the full key.
+//
+// Also returns the FULL raw response object from the Z.AI API so you
+// can see exactly what shape it returns — useful for diagnosing cases
+// where the call succeeds but content extraction fails.
 import { NextResponse } from "next/server";
 import { getZai, getZaiDiagnostics, resetZaiCache } from "@/lib/zai";
+import { extractChatContent } from "@/lib/zai-response";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -34,7 +39,7 @@ export async function GET() {
   resetZaiCache();
   try {
     const zai = await getZai();
-    const r = await zai.chat.completions.create({
+    const raw = await zai.chat.completions.create({
       messages: [
         { role: "system", content: "You are a connectivity-test bot. Reply with exactly: PONG" },
         { role: "user", content: "ping" },
@@ -42,13 +47,32 @@ export async function GET() {
       max_tokens: 10,
       temperature: 0,
     });
-    const reply = r?.choices?.[0]?.message?.content ?? "";
+
+    // Defensive extraction — shows which path worked.
+    const extracted = extractChatContent(raw);
+
     result.connectivity = {
-      status: "ok",
+      status: extracted.error ? "error" : "ok",
       httpOk: true,
-      replyPreview: String(reply).slice(0, 50),
+      replyPreview: extracted.content.slice(0, 100),
+      contentShape: extracted.shape,
+      contentLength: extracted.content.length,
+      extractionError: extracted.error,
+      rawResponsePreview: extracted.rawPreview,
+      rawResponseKeys: raw && typeof raw === "object" ? Object.keys(raw) : [],
+      rawResponseFirstChoice: raw?.choices?.[0] ?? raw?.data?.choices?.[0] ?? null,
     };
-    result.ok = true;
+    result.ok = !extracted.error && extracted.content.trim().length > 0;
+    if (!result.ok) {
+      result.error = {
+        kind: "extraction-failed",
+        message: extracted.error ?? "Content extracted but empty",
+        hint:
+          "The API call succeeded (HTTP 200) but the response shape isn't recognized. " +
+          "Check rawResponsePreview and rawResponseKeys to see what the API actually returned. " +
+          "If the shape is new, update src/lib/zai-response.ts to handle it.",
+      };
+    }
   } catch (e: any) {
     const msg = e?.message ?? String(e);
     result.connectivity = { status: "error", httpOk: false };

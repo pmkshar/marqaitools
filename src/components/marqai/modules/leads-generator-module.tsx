@@ -41,6 +41,7 @@ export function LeadsGeneratorModule() {
   const [generating, setGenerating] = useState(false);
   const [activeListId, setActiveListId] = useState<string | null>(null);
   const [fallbackWarning, setFallbackWarning] = useState<string | null>(null);
+  const [diagnostic, setDiagnostic] = useState<any | null>(null);
 
   const activeList = leadLists.find((l) => l.id === activeListId) ?? leadLists[0] ?? null;
 
@@ -51,6 +52,7 @@ export function LeadsGeneratorModule() {
     }
     setGenerating(true);
     setFallbackWarning(null);
+    setDiagnostic(null);
     try {
       const res = await fetch("/api/marqai/generate-leads", {
         method: "POST",
@@ -63,9 +65,11 @@ export function LeadsGeneratorModule() {
       // Surface fallback-mode warning to the user (AI unavailable → sample leads shown).
       if (data.source === "fallback" && data.warning) {
         setFallbackWarning(data.warning);
+        setDiagnostic(data.diagnostic ?? null);
         toast.warning("Showing sample leads", { description: "AI service is unavailable — using demo data." });
       } else {
         setFallbackWarning(null);
+        setDiagnostic(null);
         toast.success(`Generated ${data.leads.length} leads`, { description: "AI prospects ready for outreach" });
       }
 
@@ -156,13 +160,26 @@ export function LeadsGeneratorModule() {
         <div className="rounded-md bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-900">
           <div className="flex items-start gap-2">
             <span className="text-base leading-none">⚠️</span>
-            <div className="flex-1">
+            <div className="flex-1 min-w-0">
               <strong className="block mb-0.5">AI service unavailable — showing sample leads</strong>
-              <span className="text-xs text-amber-800">{fallbackWarning}</span>
+              <span className="text-xs text-amber-800 block mb-2">{fallbackWarning}</span>
+              {diagnostic && (
+                <details className="mt-2 text-xs">
+                  <summary className="cursor-pointer text-amber-700 hover:text-amber-900">
+                    Show diagnostic details
+                  </summary>
+                  <pre className="mt-2 p-2 bg-amber-100/60 rounded text-[10px] overflow-x-auto whitespace-pre-wrap break-all">
+{JSON.stringify(diagnostic, null, 2)}
+                  </pre>
+                  <p className="mt-2 text-amber-700">
+                    Open <a href="/api/debug/zai" target="_blank" className="underline font-medium">/api/debug/zai</a> in a new tab for a full connectivity test.
+                  </p>
+                </details>
+              )}
             </div>
             <button
               onClick={() => setFallbackWarning(null)}
-              className="text-amber-700 hover:text-amber-900 text-xs underline"
+              className="text-amber-700 hover:text-amber-900 text-xs underline shrink-0"
             >
               Dismiss
             </button>
