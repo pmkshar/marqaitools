@@ -348,14 +348,15 @@ Live QA status report for every Marqai module. Probes each AI-powered module's e
   "ok": true,
   "generatedAt": "2026-07-06T04:30:00.000Z",
   "summary": {
-    "totalModules": 17,
+    "totalModules": 19,
     "aiPowered": 8,
     "aiWorking": 8,
     "aiFallback": 0,
     "avgFunctionalCoverage": 95,
     "totalOpenIssues": 9,
-    "smokePassing": 17,
+    "smokePassing": 19,
     "strategiesApplied": 14,
+    "methodologiesApplied": 9,
     "scenariosApplied": 9
   },
   "reports": [
@@ -374,11 +375,14 @@ Live QA status report for every Marqai module. Probes each AI-powered module's e
     }
   ],
   "taxonomy": {
-    "strategies": [{ "id": "req-risk-based", "name": "Requirement & Risk-Based Testing", "summary": "...", "when": "per-release" }],
-    "scenarios": [{ "id": "prompt-injection", "name": "Prompt injection resistance", "summary": "...", "when": "per-release" }]
+    "strategies":     [{ "id": "req-risk-based",       "name": "Requirement & Risk-Based Testing",  "summary": "...", "when": "per-release" }],
+    "methodologies":  [{ "id": "agile-sprint",         "name": "Agile Sprint Testing",              "summary": "...", "when": "per-sprint" }],
+    "scenarios":      [{ "id": "prompt-injection",     "name": "Prompt injection resistance",       "summary": "...", "when": "per-release" }]
   }
 }
 ```
+
+The `taxonomy` field returns all 32 testing items (14 strategies + 9 methodologies + 9 AI scenarios) defined in `src/lib/marqai/testing-taxonomy.ts`. The `reports` array covers all 19 modules (8 AI-powered, 2 Integration, 5 CRUD, 4 Informational).
 
 ---
 

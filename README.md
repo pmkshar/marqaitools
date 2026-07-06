@@ -22,6 +22,8 @@ Marqai is a multi-tenant SaaS platform that bundles SEO analytics, multi-platfor
 | **Email Automation**| Campaigns + triggered automations. AI subject/body generation. Simulated send with metrics.        |
 | **Website Analyzer**| Deep portal analysis — tech stack, traffic, sources, keywords, competitors, missing features.      |
 | **AI Tool Testing** | **Dedicated module.** Run 40+ objective test cases against any AI tool. Full report card.          |
+| **AI Testing Methodologies** | QA playbook for any AI platform, AI tool, or AI-powered software. 32-item taxonomy across 3 pillars: Testing Strategies (14), Testing Methodologies (9), AI Specific Test Scenarios (9). Searchable, expandable cards with examples, pass criteria, and SDLC timing. |
+| **Module Reports**  | Per-module QA dashboard — functional coverage %, AI integration status (works/fallback/broken), smoke test status, open issues, applicable tests. Live-pings Z.AI to verify each AI endpoint. |
 | **Role Master**     | **Super Admin only.** Create unlimited custom roles with per-module permissions.                  |
 | **Team Management** | Invite team members, assign roles, manage seats against your plan.                                |
 | **Subscription**    | View plan, usage, billing cycle, upgrade/downgrade, monthly invoice history. Stripe-ready.        |
@@ -182,6 +184,22 @@ NEXTAUTH_SECRET="generate-with-openssl-rand-base64-32"
 ```
 
 > Without `ZAI_API_KEY`, the AI-powered modules will return error toasts. The rest of the app works without it.
+
+#### Z.AI configuration notes
+
+The app defaults to the **Z.AI international** deployment (`https://api.z.ai/api/paas/v4`) and the **`glm-4.5-flash`** model (free tier). Two important gotchas:
+
+- **`glm-4-flash` (legacy) does NOT exist on Z.AI international** — only on BigModel China (`open.bigmodel.cn`). If you accidentally set `ZAI_MODEL=glm-4-flash` against `api.z.ai`, every AI call will fail with code 1211 "Unknown Model". Use `glm-4.5-flash` instead.
+- **Z.AI international and BigModel China use SEPARATE API keys.** A key from `open.bigmodel.cn` will return code 1113 "Insufficient balance" on `api.z.ai` paid models, but 1211 "Unknown Model" on free models. If you only have a BigModel China key, set `ZAI_BASE_URL=https://open.bigmodel.cn/api/paas/v4` and `ZAI_MODEL=glm-4.5` (or recharge your account at https://open.bigmodel.cn).
+
+The `/api/debug/zai` endpoint runs a full self-diagnostic — it probes 15 model names against BOTH deployments and returns a structured recommendation. Use it to verify your production setup after every env var change.
+
+| Env var | Default | When to override |
+| --- | --- | --- |
+| `ZAI_API_KEY` | (none — required) | Always set this on Vercel. |
+| `ZAI_BASE_URL` | `https://api.z.ai/api/paas/v4` | Only if your key is from BigModel China — set to `https://open.bigmodel.cn/api/paas/v4`. |
+| `ZAI_MODEL` | `glm-4.5-flash` | Set to `glm-4.5` or `glm-4-plus` for higher quality on paid plans. |
+| `ZAI_IMAGE_MODEL` | `cogview-3-flash` | Set to `cogview-3-plus` for higher quality on paid plans. |
 
 ---
 
