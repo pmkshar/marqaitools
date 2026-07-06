@@ -146,15 +146,79 @@ email=user@example.com&password=...&csrfToken=...`}</code></pre>
   "ok": true,
   "generatedAt": "ISO timestamp",
   "summary": {
-    "totalModules": 18,
-    "aiPowered": 8,
-    "aiWorking": 8,
-    "avgFunctionalCoverage": 95,
-    "totalOpenIssues": 9
+    "totalModules": 19,
+    "aiPowered": 9,
+    "aiWorking": 9,
+    "avgFunctionalCoverage": 94,
+    "totalOpenIssues": 10
   },
   "reports": [{ "moduleId": "leads-generator", "moduleName": "Leads Generator", ... }],
   "taxonomy": { "strategies": [...], "methodologies": [...], "scenarios": [...] }
 }`}</code></pre>
+          </div>
+
+          <div className="rounded-md border p-3">
+            <div className="font-mono text-xs text-emerald-700">POST /api/marqai/whatsapp/send-broadcast</div>
+            <div className="text-xs text-muted-foreground mt-1">
+              Send a WhatsApp broadcast to multiple recipients at once. Permission: whatsapp:execute+.
+              Cost: 0 AI credits (uses Meta Cloud API directly). Body must include either
+              <code className="bg-muted px-1 mx-1 rounded">campaignId</code> OR
+              <code className="bg-muted px-1 mx-1 rounded">templateId + contactIds</code>.
+              Templates must be Meta-approved; contacts must be opted-in.
+            </div>
+            <pre className="bg-muted p-2 rounded mt-2 text-xs overflow-x-auto"><code>{`{
+  "campaignId": "wa-camp-xxx",
+  // OR inline:
+  "templateId": "wa-tpl-1",
+  "contactIds": ["wa-c-1", "wa-c-2"],
+  "variableOverrides": { "wa-c-1": { "{{1}}": "Priya" } }
+}`}</code></pre>
+          </div>
+
+          <div className="rounded-md border p-3">
+            <div className="font-mono text-xs text-emerald-700">POST /api/marqai/whatsapp/send-single</div>
+            <div className="text-xs text-muted-foreground mt-1">
+              Send a single transactional WhatsApp message (order confirmation, OTP, appointment reminder, etc.).
+              Permission: whatsapp:execute+. Cost: 0.
+            </div>
+            <pre className="bg-muted p-2 rounded mt-2 text-xs overflow-x-auto"><code>{`{
+  "templateId": "wa-tpl-3",
+  "phone": "+14155551234",
+  "variables": { "{{1}}": "Priya", "{{2}}": "88412" }
+}`}</code></pre>
+          </div>
+
+          <div className="rounded-md border p-3">
+            <div className="font-mono text-xs text-emerald-700">POST /api/marqai/whatsapp/generate-template</div>
+            <div className="text-xs text-muted-foreground mt-1">
+              Use Marqai AI to draft a Meta-compliant WhatsApp template from a natural-language intent.
+              Permission: whatsapp:execute+. Cost: 25 AI credits. Returns a draft template the user reviews and submits to Meta.
+            </div>
+            <pre className="bg-muted p-2 rounded mt-2 text-xs overflow-x-auto"><code>{`{ "intent": "Diwali greeting + 20% off electronics + free shipping + Diwali10 code" }`}</code></pre>
+          </div>
+
+          <div className="rounded-md border p-3">
+            <div className="font-mono text-xs text-emerald-700">GET /api/marqai/whatsapp/message-status?campaignId=xxx</div>
+            <div className="text-xs text-muted-foreground mt-1">
+              Get delivery / read / click / reply status for all messages in a campaign. Permission: whatsapp:view+.
+            </div>
+          </div>
+
+          <div className="rounded-md border p-3">
+            <div className="font-mono text-xs text-emerald-700">GET/POST /api/marqai/whatsapp/webhook</div>
+            <div className="text-xs text-muted-foreground mt-1">
+              Webhook receiver for WhatsApp Cloud API callbacks. <strong>GET</strong> handles Meta webhook verification
+              (verify token: <code className="bg-muted px-1 rounded">marqai_verify_2026</code>). <strong>POST</strong> receives
+              inbound messages, status updates, and template status updates. Configure in WhatsApp Business Manager → Webhooks.
+            </div>
+          </div>
+
+          <div className="rounded-md border p-3">
+            <div className="font-mono text-xs text-emerald-700">GET /api/marqai/whatsapp/test-connection</div>
+            <div className="text-xs text-muted-foreground mt-1">
+              Verify the WhatsApp Business connection is live. Returns provider, quality rating, messaging tier.
+              Permission: whatsapp:view+.
+            </div>
           </div>
         </div>
       </section>

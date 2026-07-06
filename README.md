@@ -19,6 +19,7 @@ Marqai is a multi-tenant SaaS platform that bundles SEO analytics, multi-platfor
 | **Logo Builder**    | AI logos + instant SVG wordmark / monogram / emblem / abstract / gradient templates. Download as PNG or SVG. |
 | **Website Builder** | AI landing pages — hero, features, testimonial, pricing, FAQ, CTA. Live preview + export HTML.    |
 | **Leads Generator** | AI prospect lists per product/service — company, contact, fit-reason, 0-100 score. Export CSV.    |
+| **WhatsApp Marketing** | Broadcast marketing messages to thousands at once. Templates (Meta-approved), contacts (opt-in enforced), campaigns, scheduling, delivery/read/click analytics, REST API + webhook for external integrations. |
 | **Email Automation**| Campaigns + triggered automations. AI subject/body generation. Simulated send with metrics.        |
 | **Website Analyzer**| Deep portal analysis — tech stack, traffic, sources, keywords, competitors, missing features.      |
 | **AI Tool Testing** | **Dedicated module.** Run 40+ objective test cases against any AI tool. Full report card.          |

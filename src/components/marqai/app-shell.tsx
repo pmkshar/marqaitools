@@ -18,6 +18,7 @@ import { AiTestingMethodologiesModule } from "./modules/ai-testing-methodologies
 import { LogoBuilderModule } from "./modules/logo-builder-module";
 import { WebsiteBuilderModule } from "./modules/website-builder-module";
 import { LeadsGeneratorModule } from "./modules/leads-generator-module";
+import { WhatsAppModule } from "./modules/whatsapp-module";
 import { ReportsModule } from "./modules/reports-module";
 import { RolesModule } from "./modules/roles-module";
 import { TeamModule } from "./modules/team-module";
@@ -145,6 +146,8 @@ function renderModule(m: ModuleId, principal: ReturnType<typeof useMarqai.getSta
       return <WebsiteBuilderModule />;
     case "leads-generator":
       return <LeadsGeneratorModule />;
+    case "whatsapp":
+      return <WhatsAppModule />;
     case "reports":
       return <ReportsModule />;
     case "roles":

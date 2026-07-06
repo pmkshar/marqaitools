@@ -27,6 +27,12 @@ import type {
   LeadList,
   Lead,
   LeadStatus,
+  WhatsAppTemplate,
+  WhatsAppContact,
+  WhatsAppContactList,
+  WhatsAppCampaign,
+  WhatsAppMessageLog,
+  WhatsAppConnection,
 } from "./types";
 import {
   seedAccounts,
@@ -36,6 +42,12 @@ import {
   seedImages,
   seedVideos,
   seedAiTestReports,
+  seedWhatsAppTemplates,
+  seedWhatsAppContacts,
+  seedWhatsAppContactLists,
+  seedWhatsAppCampaigns,
+  seedWhatsAppMessageLogs,
+  seedWhatsAppConnection,
 } from "./mock-data";
 import {
   DEMO_ORG,
@@ -148,6 +160,27 @@ interface MarqaiState {
   addLeadList: (ll: LeadList) => void;
   deleteLeadList: (id: string) => void;
   updateLeadStatus: (listId: string, leadId: string, status: LeadStatus) => void;
+
+  // ---------- WHATSAPP MARKETING ----------
+  whatsappTemplates: WhatsAppTemplate[];
+  addWhatsAppTemplate: (t: WhatsAppTemplate) => void;
+  updateWhatsAppTemplate: (id: string, patch: Partial<WhatsAppTemplate>) => void;
+  deleteWhatsAppTemplate: (id: string) => void;
+  whatsappContacts: WhatsAppContact[];
+  addWhatsAppContact: (c: WhatsAppContact) => void;
+  updateWhatsAppContact: (id: string, patch: Partial<WhatsAppContact>) => void;
+  deleteWhatsAppContact: (id: string) => void;
+  whatsappContactLists: WhatsAppContactList[];
+  addWhatsAppContactList: (cl: WhatsAppContactList) => void;
+  deleteWhatsAppContactList: (id: string) => void;
+  whatsappCampaigns: WhatsAppCampaign[];
+  addWhatsAppCampaign: (c: WhatsAppCampaign) => void;
+  updateWhatsAppCampaign: (id: string, patch: Partial<WhatsAppCampaign>) => void;
+  deleteWhatsAppCampaign: (id: string) => void;
+  whatsappMessageLogs: WhatsAppMessageLog[];
+  addWhatsAppMessageLogs: (logs: WhatsAppMessageLog[]) => void;
+  whatsappConnection: WhatsAppConnection;
+  updateWhatsAppConnection: (patch: Partial<WhatsAppConnection>) => void;
 }
 
 export const useMarqai = create<MarqaiState>()(
@@ -418,6 +451,69 @@ export const useMarqai = create<MarqaiState>()(
               : ll,
           ),
         })),
+
+      // ---------- WHATSAPP MARKETING ----------
+      whatsappTemplates: seedWhatsAppTemplates,
+      addWhatsAppTemplate: (t) =>
+        set((s) => ({ whatsappTemplates: [t, ...s.whatsappTemplates] })),
+      updateWhatsAppTemplate: (id, patch) =>
+        set((s) => ({
+          whatsappTemplates: s.whatsappTemplates.map((t) =>
+            t.id === id ? { ...t, ...patch } : t,
+          ),
+        })),
+      deleteWhatsAppTemplate: (id) =>
+        set((s) => ({
+          whatsappTemplates: s.whatsappTemplates.filter((t) => t.id !== id),
+        })),
+
+      whatsappContacts: seedWhatsAppContacts,
+      addWhatsAppContact: (c) =>
+        set((s) => ({ whatsappContacts: [c, ...s.whatsappContacts] })),
+      updateWhatsAppContact: (id, patch) =>
+        set((s) => ({
+          whatsappContacts: s.whatsappContacts.map((c) =>
+            c.id === id ? { ...c, ...patch } : c,
+          ),
+        })),
+      deleteWhatsAppContact: (id) =>
+        set((s) => ({
+          whatsappContacts: s.whatsappContacts.filter((c) => c.id !== id),
+          whatsappContactLists: s.whatsappContactLists.map((cl) => ({
+            ...cl,
+            contactIds: cl.contactIds.filter((cid) => cid !== id),
+          })),
+        })),
+
+      whatsappContactLists: seedWhatsAppContactLists,
+      addWhatsAppContactList: (cl) =>
+        set((s) => ({ whatsappContactLists: [cl, ...s.whatsappContactLists] })),
+      deleteWhatsAppContactList: (id) =>
+        set((s) => ({
+          whatsappContactLists: s.whatsappContactLists.filter((cl) => cl.id !== id),
+        })),
+
+      whatsappCampaigns: seedWhatsAppCampaigns,
+      addWhatsAppCampaign: (c) =>
+        set((s) => ({ whatsappCampaigns: [c, ...s.whatsappCampaigns] })),
+      updateWhatsAppCampaign: (id, patch) =>
+        set((s) => ({
+          whatsappCampaigns: s.whatsappCampaigns.map((c) =>
+            c.id === id ? { ...c, ...patch } : c,
+          ),
+        })),
+      deleteWhatsAppCampaign: (id) =>
+        set((s) => ({
+          whatsappCampaigns: s.whatsappCampaigns.filter((c) => c.id !== id),
+        })),
+
+      whatsappMessageLogs: seedWhatsAppMessageLogs,
+      addWhatsAppMessageLogs: (logs) =>
+        set((s) => ({ whatsappMessageLogs: [...logs, ...s.whatsappMessageLogs] })),
+
+      whatsappConnection: seedWhatsAppConnection,
+      updateWhatsAppConnection: (patch) =>
+        set((s) => ({ whatsappConnection: { ...s.whatsappConnection, ...patch } })),
     }),
     {
       name: "marqai-session-v2",
@@ -431,6 +527,12 @@ export const useMarqai = create<MarqaiState>()(
         logos: s.logos,
         websites: s.websites,
         leadLists: s.leadLists,
+        whatsappTemplates: s.whatsappTemplates,
+        whatsappContacts: s.whatsappContacts,
+        whatsappContactLists: s.whatsappContactLists,
+        whatsappCampaigns: s.whatsappCampaigns,
+        whatsappMessageLogs: s.whatsappMessageLogs,
+        whatsappConnection: s.whatsappConnection,
       }),
     },
   ),

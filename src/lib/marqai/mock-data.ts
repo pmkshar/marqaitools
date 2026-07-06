@@ -374,3 +374,182 @@ export const seedAiTestReports: AiToolTestReport[] = [
     ],
   },
 ];
+
+// ============================================================
+// WHATSAPP MARKETING — seed data
+// ============================================================
+
+import type {
+  WhatsAppTemplate,
+  WhatsAppContact,
+  WhatsAppContactList,
+  WhatsAppCampaign,
+  WhatsAppMessageLog,
+  WhatsAppConnection,
+} from "./types";
+
+export const seedWhatsAppTemplates: WhatsAppTemplate[] = [
+  {
+    id: "wa-tpl-1",
+    name: "Summer Sale 2026",
+    elementName: "summer_sale_2026",
+    category: "marketing",
+    language: "en_US",
+    header: "🔥 Summer Sale — Up to 40% off",
+    body:
+      "Hi {{1}}, our Summer Sale is live! Get {{2}}% off on {{3}}. Use code {{4}} at checkout. Shop now: {{5}}",
+    footer: "Reply STOP to opt out",
+    buttons: [
+      { type: "url", text: "Shop Now", url: "https://shop.example.com/sale" },
+      { type: "quick_reply", text: "Tell me more" },
+    ],
+    status: "approved",
+    variables: ["{{1}}", "{{2}}", "{{3}}", "{{4}}", "{{5}}"],
+    createdAt: "2026-06-15T10:00:00.000Z",
+    preview:
+      "Hi Priya, our Summer Sale is live! Get 40% off on All Summer Apparel. Use code SUMMER40 at checkout. Shop now: https://shop.example.com/sale",
+  },
+  {
+    id: "wa-tpl-2",
+    name: "Abandoned Cart Reminder",
+    elementName: "abandoned_cart_v3",
+    category: "utility",
+    language: "en_US",
+    body:
+      "Hi {{1}}, you left {{2}} in your cart. Complete your order now and get free shipping: {{3}}",
+    footer: "This reminder will expire in 24 hours",
+    buttons: [{ type: "url", text: "Complete Order", url: "{{3}}" }],
+    status: "approved",
+    variables: ["{{1}}", "{{2}}", "{{3}}"],
+    createdAt: "2026-06-20T14:30:00.000Z",
+    preview:
+      "Hi Arjun, you left Nike Air Max 2026 in your cart. Complete your order now and get free shipping: https://shop.example.com/cart/abc123",
+  },
+  {
+    id: "wa-tpl-3",
+    name: "Order Shipped",
+    elementName: "order_shipped_v2",
+    category: "transactional",
+    language: "en_US",
+    body:
+      "Hi {{1}}, your order #{{2}} has shipped! Track it here: {{3}}. Estimated delivery: {{4}}.",
+    footer: "Marqai Shipping",
+    buttons: [{ type: "url", text: "Track Order", url: "{{3}}" }],
+    status: "approved",
+    variables: ["{{1}}", "{{2}}", "{{3}}", "{{4}}"],
+    createdAt: "2026-06-25T09:15:00.000Z",
+    preview:
+      "Hi Meera, your order #88412 has shipped! Track it here: https://track.example.com/88412. Estimated delivery: Jul 8, 2026.",
+  },
+  {
+    id: "wa-tpl-4",
+    name: "New Product Launch",
+    elementName: "new_product_launch_v1",
+    category: "marketing",
+    language: "en_US",
+    body:
+      "Hi {{1}}, we just launched {{2}}! Be the first to try it. Early bird price: {{3}} (was {{4}}). Offer ends {{5}}.",
+    footer: "Reply YES to reserve yours",
+    status: "pending",
+    variables: ["{{1}}", "{{2}}", "{{3}}", "{{4}}", "{{5}}"],
+    createdAt: "2026-07-01T11:00:00.000Z",
+    preview:
+      "Hi Rohan, we just launched Marqai Pro! Be the first to try it. Early bird price: $99 (was $199). Offer ends Jul 15, 2026.",
+  },
+  {
+    id: "wa-tpl-5",
+    name: "Appointment Reminder",
+    elementName: "appointment_reminder_v1",
+    category: "utility",
+    language: "en_US",
+    body:
+      "Hi {{1}}, this is a reminder for your appointment with {{2}} on {{3}} at {{4}}. Reply C to confirm or R to reschedule.",
+    status: "approved",
+    variables: ["{{1}}", "{{2}}", "{{3}}", "{{4}}"],
+    createdAt: "2026-06-28T16:45:00.000Z",
+    preview:
+      "Hi Kavya, this is a reminder for your appointment with Dr. Smith on Jul 10, 2026 at 2:30 PM. Reply C to confirm or R to reschedule.",
+  },
+];
+
+export const seedWhatsAppContacts: WhatsAppContact[] = [
+  { id: "wa-c-1", name: "Priya Menon", phone: "+14155551234", email: "priya@example.com", optedIn: true, tags: ["vip", "newsletter"], customFields: { city: "San Francisco", lastOrder: "$240" }, createdAt: "2026-05-10T08:00:00.000Z" },
+  { id: "wa-c-2", name: "Arjun Reddy", phone: "+14155552345", email: "arjun@example.com", optedIn: true, tags: ["newsletter"], customFields: { city: "Bangalore", lastOrder: "$89" }, createdAt: "2026-05-12T10:30:00.000Z" },
+  { id: "wa-c-3", name: "Meera Nair", phone: "+14155553456", email: "meera@example.com", optedIn: true, tags: ["vip"], customFields: { city: "Mumbai", lastOrder: "$520" }, createdAt: "2026-05-15T14:20:00.000Z" },
+  { id: "wa-c-4", name: "Rohan Das", phone: "+14155554567", email: "rohan@example.com", optedIn: false, tags: ["newsletter"], customFields: { city: "Delhi", lastOrder: "$0" }, createdAt: "2026-05-20T09:15:00.000Z" },
+  { id: "wa-c-5", name: "Kavya Iyer", phone: "+14155555678", email: "kavya@example.com", optedIn: true, tags: ["vip", "newsletter"], customFields: { city: "Chennai", lastOrder: "$1,240" }, createdAt: "2026-05-22T11:45:00.000Z" },
+  { id: "wa-c-6", name: "Vikram Shah", phone: "+14155556789", email: "vikram@example.com", optedIn: true, tags: ["newsletter"], customFields: { city: "Pune", lastOrder: "$45" }, createdAt: "2026-05-25T13:00:00.000Z" },
+  { id: "wa-c-7", name: "Nikhil Rao", phone: "+14155557890", email: "nikhil@example.com", optedIn: true, tags: [], customFields: { city: "Hyderabad", lastOrder: "$180" }, createdAt: "2026-06-01T15:30:00.000Z" },
+  { id: "wa-c-8", name: "Isha Kapoor", phone: "+14155558901", email: "isha@example.com", optedIn: true, tags: ["vip"], customFields: { city: "Kolkata", lastOrder: "$680" }, createdAt: "2026-06-05T17:00:00.000Z" },
+];
+
+export const seedWhatsAppContactLists: WhatsAppContactList[] = [
+  { id: "wa-cl-1", name: "VIP Customers", description: "High-LTV customers (>$500 lifetime)", contactIds: ["wa-c-1", "wa-c-3", "wa-c-5", "wa-c-8"], createdAt: "2026-06-01T10:00:00.000Z" },
+  { id: "wa-cl-2", name: "Newsletter Subscribers", description: "Opted-in to weekly newsletter", contactIds: ["wa-c-1", "wa-c-2", "wa-c-3", "wa-c-4", "wa-c-5", "wa-c-6"], createdAt: "2026-06-05T10:00:00.000Z" },
+  { id: "wa-cl-3", name: "All Opted-In", description: "Everyone who has opted in to WhatsApp marketing", contactIds: ["wa-c-1", "wa-c-2", "wa-c-3", "wa-c-5", "wa-c-6", "wa-c-7", "wa-c-8"], createdAt: "2026-06-10T10:00:00.000Z" },
+];
+
+export const seedWhatsAppCampaigns: WhatsAppCampaign[] = [
+  {
+    id: "wa-camp-1",
+    name: "Summer Sale Launch",
+    templateId: "wa-tpl-1",
+    templateName: "Summer Sale 2026",
+    type: "broadcast",
+    status: "sent",
+    contactIds: ["wa-c-1", "wa-c-3", "wa-c-5", "wa-c-8"],
+    recipientCount: 4,
+    sentAt: "2026-06-15T11:00:00.000Z",
+    stats: { sent: 4, delivered: 4, read: 3, failed: 0, clicked: 2, replied: 1, optedOut: 0 },
+    createdAt: "2026-06-15T10:45:00.000Z",
+  },
+  {
+    id: "wa-camp-2",
+    name: "Abandoned Cart — June 28",
+    templateId: "wa-tpl-2",
+    templateName: "Abandoned Cart Reminder",
+    type: "api-triggered",
+    status: "sent",
+    contactIds: ["wa-c-2", "wa-c-6"],
+    recipientCount: 2,
+    sentAt: "2026-06-28T16:00:00.000Z",
+    stats: { sent: 2, delivered: 2, read: 2, failed: 0, clicked: 1, replied: 0, optedOut: 0 },
+    createdAt: "2026-06-28T15:30:00.000Z",
+  },
+  {
+    id: "wa-camp-3",
+    name: "New Product Launch — Pro",
+    templateId: "wa-tpl-4",
+    templateName: "New Product Launch",
+    type: "scheduled",
+    status: "scheduled",
+    contactIds: ["wa-c-1", "wa-c-2", "wa-c-3", "wa-c-5", "wa-c-6", "wa-c-7", "wa-c-8"],
+    recipientCount: 7,
+    scheduledAt: "2026-07-10T10:00:00.000Z",
+    createdAt: "2026-07-02T14:00:00.000Z",
+    notes: "Pending template approval from Meta",
+  },
+];
+
+export const seedWhatsAppMessageLogs: WhatsAppMessageLog[] = [
+  { id: "wa-log-1", campaignId: "wa-camp-1", campaignName: "Summer Sale Launch", contactId: "wa-c-1", contactName: "Priya Menon", phone: "+14155551234", templateName: "Summer Sale 2026", status: "read", providerMessageId: "wamid.HBgLxxx1", sentAt: "2026-06-15T11:00:00.000Z", deliveredAt: "2026-06-15T11:00:02.000Z", readAt: "2026-06-15T11:05:12.000Z" },
+  { id: "wa-log-2", campaignId: "wa-camp-1", campaignName: "Summer Sale Launch", contactId: "wa-c-3", contactName: "Meera Nair", phone: "+14155553456", templateName: "Summer Sale 2026", status: "clicked", providerMessageId: "wamid.HBgLxxx2", sentAt: "2026-06-15T11:00:00.000Z", deliveredAt: "2026-06-15T11:00:03.000Z", readAt: "2026-06-15T11:08:44.000Z" },
+  { id: "wa-log-3", campaignId: "wa-camp-1", campaignName: "Summer Sale Launch", contactId: "wa-c-5", contactName: "Kavya Iyer", phone: "+14155555678", templateName: "Summer Sale 2026", status: "replied", providerMessageId: "wamid.HBgLxxx3", sentAt: "2026-06-15T11:00:00.000Z", deliveredAt: "2026-06-15T11:00:02.000Z", readAt: "2026-06-15T11:12:31.000Z" },
+  { id: "wa-log-4", campaignId: "wa-camp-1", campaignName: "Summer Sale Launch", contactId: "wa-c-8", contactName: "Isha Kapoor", phone: "+14155558901", templateName: "Summer Sale 2026", status: "delivered", providerMessageId: "wamid.HBgLxxx4", sentAt: "2026-06-15T11:00:00.000Z", deliveredAt: "2026-06-15T11:00:03.000Z" },
+  { id: "wa-log-5", campaignId: "wa-camp-2", campaignName: "Abandoned Cart — June 28", contactId: "wa-c-2", contactName: "Arjun Reddy", phone: "+14155552345", templateName: "Abandoned Cart Reminder", status: "clicked", providerMessageId: "wamid.HBgLxxx5", sentAt: "2026-06-28T16:00:00.000Z", deliveredAt: "2026-06-28T16:00:02.000Z", readAt: "2026-06-28T16:15:10.000Z" },
+  { id: "wa-log-6", campaignId: "wa-camp-2", campaignName: "Abandoned Cart — June 28", contactId: "wa-c-6", contactName: "Vikram Shah", phone: "+14155556789", templateName: "Abandoned Cart Reminder", status: "read", providerMessageId: "wamid.HBgLxxx6", sentAt: "2026-06-28T16:00:00.000Z", deliveredAt: "2026-06-28T16:00:02.000Z", readAt: "2026-06-28T16:22:55.000Z" },
+];
+
+export const seedWhatsAppConnection: WhatsAppConnection = {
+  provider: "meta-cloud-api",
+  phoneNumberId: "108843529999999",
+  wabaId: "102938475610203",
+  displayName: "Marqai Demo Store",
+  phoneNumber: "+14155550000",
+  qualityRating: "GREEN",
+  messagingTier: "10K",
+  apiKeyMasked: "EAAG…8f2c",
+  webhookUrl: "https://marqaitools.vercel.app/api/marqai/whatsapp/webhook",
+  connected: true,
+  connectedAt: "2026-05-01T10:00:00.000Z",
+};

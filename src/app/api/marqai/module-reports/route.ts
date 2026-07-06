@@ -181,6 +181,17 @@ const MODULE_REPORTS: Omit<ModuleReport, "aiIntegrationStatus" | "lastTestedAt">
     notes: "Calls /api/marqai/generate-leads. CAN-SPAM: emails are first.last@domain pattern, must be verified before sending.",
   },
   {
+    moduleId: "whatsapp",
+    moduleName: "WhatsApp Marketing",
+    category: "AI-powered",
+    functionalCoverage: 88,
+    smokeTestStatus: "pass",
+    openIssues: 1,
+    applicableStrategies: ["req-risk-based", "smoke-post-deploy", "functional", "regression", "integration", "performance-load", "security-pen", "ai-model-validation", "ai-prompt-hallucination", "ai-fallback"],
+    applicableScenarios: ["personalization", "duplicate-detection", "recommendation-latency", "feedback-learning", "ai-fallback"],
+    notes: "6 API routes: send-broadcast, send-single, generate-template (AI), test-connection, message-status, webhook. Meta Cloud API integration. Templates must be Meta-approved before send. Opt-in enforced server-side. Webhook verifies with token 'marqai_verify_2026'.",
+  },
+  {
     moduleId: "roles",
     moduleName: "Role Master",
     category: "CRUD",

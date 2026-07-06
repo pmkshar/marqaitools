@@ -18,6 +18,7 @@ export type ModuleId =
   | "logo-builder"
   | "website-builder"
   | "leads-generator"
+  | "whatsapp"
   | "reports"
   | "roles"
   | "team"
@@ -437,4 +438,184 @@ export interface LeadList {
   totalLeads: number;
   leads: Lead[];
   createdAt: string;
+}
+
+// ============================================================
+// WHATSAPP MARKETING
+// ============================================================
+
+export type WhatsAppTemplateCategory =
+  | "marketing"
+  | "utility"
+  | "authentication"
+  | "transactional";
+
+export type WhatsAppTemplateStatus = "approved" | "pending" | "rejected" | "draft";
+
+export type WhatsAppLanguage = "en" | "en_US" | "en_GB" | "hi" | "es" | "pt_BR" | "ar" | "fr" | "de" | "id" | "it" | "ja" | "ko" | "ms" | "ru" | "th" | "tr" | "vi" | "zh_CN" | "zh_TW";
+
+export interface WhatsAppTemplate {
+  id: string;
+  name: string;
+  /** Element name (lowercase, underscores). E.g. "summer_sale_2026". */
+  elementName: string;
+  category: WhatsAppTemplateCategory;
+  language: WhatsAppLanguage;
+  /** Body text. Use {{1}}, {{2}} for variable placeholders. */
+  body: string;
+  /** Optional header text (plain text only — image/video headers not supported in this version). */
+  header?: string;
+  /** Optional footer text. */
+  footer?: string;
+  /** Optional call-to-action buttons. */
+  buttons?: WhatsAppTemplateButton[];
+  status: WhatsAppTemplateStatus;
+  /** Variables extracted from body — list of {{1}}, {{2}}... */
+  variables: string[];
+  createdAt: string;
+  /** Quick preview rendered with sample values. */
+  preview?: string;
+}
+
+export interface WhatsAppTemplateButton {
+  type: "url" | "phone" | "quick_reply";
+  text: string;
+  /** For url buttons: the URL template (may contain {{1}}). */
+  url?: string;
+  /** For phone buttons: the phone number in E.164. */
+  phone?: string;
+}
+
+export interface WhatsAppContact {
+  id: string;
+  name: string;
+  /** Phone number in E.164 format, e.g. +14155551234. */
+  phone: string;
+  email?: string;
+  /** Custom fields for personalization. */
+  customFields?: Record<string, string>;
+  /** Opted-in to marketing messages. */
+  optedIn: boolean;
+  /** Tags for segmentation. */
+  tags: string[];
+  createdAt: string;
+}
+
+export interface WhatsAppContactList {
+  id: string;
+  name: string;
+  description?: string;
+  contactIds: string[];
+  createdAt: string;
+}
+
+export type WhatsAppCampaignStatus =
+  | "draft"
+  | "scheduled"
+  | "sending"
+  | "sent"
+  | "partial"
+  | "aborted";
+
+export type WhatsAppCampaignType =
+  | "broadcast"     // one-shot send to a list
+  | "scheduled"     // future scheduled send
+  | "api-triggered"; // triggered via API by external system
+
+export interface WhatsAppCampaign {
+  id: string;
+  name: string;
+  templateId: string;
+  templateName: string;
+  type: WhatsAppCampaignType;
+  status: WhatsAppCampaignStatus;
+  /** Recipient contact IDs. */
+  contactIds: string[];
+  /** Total recipients (denormalized for quick display). */
+  recipientCount: number;
+  /** Per-recipient variable values keyed by contactId. */
+  variableOverrides?: Record<string, Record<string, string>>;
+  scheduledAt?: string;
+  sentAt?: string;
+  /** Analytics — populated after send. */
+  stats?: WhatsAppCampaignStats;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface WhatsAppCampaignStats {
+  sent: number;
+  delivered: number;
+  read: number;
+  failed: number;
+  clicked: number;
+  replied: number;
+  optedOut: number;
+}
+
+export type WhatsAppMessageStatus =
+  | "queued"
+  | "sent"
+  | "delivered"
+  | "read"
+  | "failed"
+  | "clicked"
+  | "replied";
+
+export interface WhatsAppMessageLog {
+  id: string;
+  campaignId: string;
+  campaignName: string;
+  contactId: string;
+  contactName: string;
+  phone: string;
+  templateName: string;
+  status: WhatsAppMessageStatus;
+  /** Provider message ID (e.g. wamid.HBgL...). */
+  providerMessageId?: string;
+  error?: string;
+  sentAt: string;
+  deliveredAt?: string;
+  readAt?: string;
+}
+
+export type WhatsAppProvider =
+  | "meta-cloud-api"
+  | "twilio"
+  | "messagebird"
+  | "gupshup"
+  | "360dialog"
+  | "manual";
+
+export interface WhatsAppConnection {
+  provider: WhatsAppProvider;
+  /** Phone number ID from Meta Cloud API. */
+  phoneNumberId?: string;
+  /** WhatsApp Business Account ID. */
+  wabaId?: string;
+  /** Display name on the WhatsApp Business profile. */
+  displayName?: string;
+  /** Verified phone number in E.164. */
+  phoneNumber?: string;
+  /** Quality rating from Meta: HIGH / MEDIUM / LOW. */
+  qualityRating?: "GREEN" | "YELLOW" | "RED" | "UNKNOWN";
+  /** Messaging limit tier (1K / 10K / 100K / unlimited per 24h). */
+  messagingTier?: "1K" | "10K" | "100K" | "UNLIMITED";
+  /** API key / token for the chosen provider (masked in UI). */
+  apiKeyMasked?: string;
+  /** Webhook URL for inbound messages + status callbacks. */
+  webhookUrl?: string;
+  /** Whether the connection is live / verified. */
+  connected: boolean;
+  connectedAt?: string;
+}
+
+export interface WhatsAppWebhookEvent {
+  id: string;
+  receivedAt: string;
+  type: "message_received" | "message_status" | "message_template_status";
+  /** Raw payload from the provider (Meta / Twilio / etc.). */
+  payload: Record<string, unknown>;
+  /** Parsed summary for display. */
+  summary: string;
 }

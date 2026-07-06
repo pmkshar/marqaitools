@@ -29,6 +29,7 @@ const moduleTitles: Record<string, { title: string; subtitle: string }> = {
   "logo-builder": { title: "Logo Builder", subtitle: "AI logos + SVG templates with palette + style control" },
   "website-builder": { title: "Website Builder", subtitle: "AI landing pages with 6 sections" },
   "leads-generator": { title: "Leads Generator", subtitle: "AI prospect lists per product + market" },
+  whatsapp: { title: "WhatsApp Marketing", subtitle: "Broadcast campaigns, templates, contacts & API integration" },
   reports: { title: "Module Reports", subtitle: "QA coverage & AI health per module" },
   roles: { title: "Role Master", subtitle: "Create unlimited custom roles with per-module permissions" },
   team: { title: "Team Management", subtitle: "Invite members, assign roles, track seat usage" },
