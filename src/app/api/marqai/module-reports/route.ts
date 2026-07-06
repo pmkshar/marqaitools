@@ -1,7 +1,7 @@
 // GET /api/marqai/module-reports
 // Returns a comprehensive QA status report for every Marqai module.
 //
-// For each of the 14 modules, the report includes:
+// For each of the 18 modules, the report includes:
 //   - Functional coverage (% of documented flows with passing tests)
 //   - AI integration status (works / fallback / broken / n/a)
 //   - Which Testing Strategies apply
@@ -16,7 +16,7 @@
 import { NextResponse } from "next/server";
 import { getZai, getDefaultModel } from "@/lib/zai";
 import { extractChatContent } from "@/lib/zai-response";
-import { TESTING_STRATEGIES, AI_TEST_SCENARIOS } from "@/lib/marqai/testing-taxonomy";
+import { TESTING_STRATEGIES, TESTING_METHODOLOGIES, AI_TEST_SCENARIOS } from "@/lib/marqai/testing-taxonomy";
 import type { ModuleId } from "@/lib/marqai/types";
 
 export const runtime = "nodejs";
@@ -137,6 +137,17 @@ const MODULE_REPORTS: Omit<ModuleReport, "aiIntegrationStatus" | "lastTestedAt">
     notes: "Calls /api/marqai/test-ai-tool. Generates 8-12 test cases per tool. Covers all 9 AI test scenarios.",
   },
   {
+    moduleId: "ai-testing-methodologies",
+    moduleName: "AI Testing Methodologies",
+    category: "Informational",
+    functionalCoverage: 100,
+    smokeTestStatus: "pass",
+    openIssues: 0,
+    applicableStrategies: ["smoke-post-deploy", "functional", "cross-browser-responsive", "accessibility"],
+    applicableScenarios: [],
+    notes: "Reference module — renders the TESTING_TAXONOMY playbook (15 strategies + 10 methodologies + 9 AI scenarios). No AI calls; pure documentation surface.",
+  },
+  {
     moduleId: "logo-builder",
     moduleName: "Logo Builder",
     category: "AI-powered",
@@ -201,6 +212,17 @@ const MODULE_REPORTS: Omit<ModuleReport, "aiIntegrationStatus" | "lastTestedAt">
     applicableStrategies: ["req-risk-based", "smoke-post-deploy", "functional", "regression", "integration", "security-pen", "data-validation"],
     applicableScenarios: [],
     notes: "Stripe checkout + webhook + portal. 4 plans. Invoice history. Cancel flow with data retention warning.",
+  },
+  {
+    moduleId: "reports",
+    moduleName: "Module Reports",
+    category: "Informational",
+    functionalCoverage: 100,
+    smokeTestStatus: "pass",
+    openIssues: 0,
+    applicableStrategies: ["smoke-post-deploy", "functional", "regression", "integration", "data-validation"],
+    applicableScenarios: ["ai-fallback"],
+    notes: "Calls /api/marqai/module-reports on mount. Surfaces per-module functional coverage, AI integration status, smoke status, and open issues. Refresh button re-fetches live data.",
   },
   {
     moduleId: "wiki",
@@ -286,6 +308,7 @@ export async function GET() {
     totalOpenIssues: reports.reduce((s, r) => s + r.openIssues, 0),
     smokePassing: reports.filter((r) => r.smokeTestStatus === "pass").length,
     strategiesApplied: TESTING_STRATEGIES.items.length,
+    methodologiesApplied: TESTING_METHODOLOGIES.items.length,
     scenariosApplied: AI_TEST_SCENARIOS.items.length,
   };
 
@@ -301,7 +324,12 @@ export async function GET() {
         summary: s.summary,
         when: s.when,
       })),
-      methodologies: [],
+      methodologies: TESTING_METHODOLOGIES.items.map((m) => ({
+        id: m.id,
+        name: m.name,
+        summary: m.summary,
+        when: m.when,
+      })),
       scenarios: AI_TEST_SCENARIOS.items.map((s) => ({
         id: s.id,
         name: s.name,

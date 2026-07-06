@@ -21,6 +21,8 @@ import {
   PenTool,
   LayoutTemplate,
   Target,
+  ClipboardList,
+  BarChart3,
 } from "lucide-react";
 import { useMarqai } from "@/lib/marqai/store";
 import { classNames } from "@/lib/marqai/utils";
@@ -47,10 +49,12 @@ const NAV: {
   { id: "email",            label: "Email Automation",  icon: Mail,            group: "Outreach",       description: "Campaigns & flows" },
   { id: "leads-generator",  label: "Leads Generator",   icon: Target,          group: "Outreach",       description: "AI prospect lists per product" },
   { id: "analyzer",         label: "Website Analyzer",  icon: Globe,           group: "Analysis",       description: "Deep portal analysis" },
-  { id: "ai-testing",       label: "AI Tool Testing",   icon: FlaskConical,    group: "Analysis",       description: "Grade any AI tool" },
-  { id: "team",             label: "Team Management",   icon: Users,           group: "Administration", description: "Members & seats" },
-  { id: "roles",            label: "Role Master",       icon: Shield,          group: "Administration", description: "Create custom roles" },
-  { id: "billing",          label: "Subscription",      icon: CreditCard,      group: "Administration", description: "Plan & invoices" },
+  { id: "ai-testing",               label: "AI Tool Testing",          icon: FlaskConical,    group: "Analysis",       description: "Grade any AI tool" },
+  { id: "ai-testing-methodologies", label: "Testing Methodologies",    icon: ClipboardList,  group: "Analysis",       description: "QA playbook for any AI platform" },
+  { id: "team",                     label: "Team Management",          icon: Users,          group: "Administration", description: "Members & seats" },
+  { id: "roles",                    label: "Role Master",              icon: Shield,         group: "Administration", description: "Create custom roles" },
+  { id: "billing",                  label: "Subscription",             icon: CreditCard,     group: "Administration", description: "Plan & invoices" },
+  { id: "reports",                  label: "Module Reports",           icon: BarChart3,      group: "Administration", description: "QA coverage & AI health per module" },
   { id: "wiki",             label: "Wiki / Docs",       icon: BookOpen,        group: "System",         description: "Functional & technical docs" },
   { id: "settings",         label: "Settings",          icon: Settings,        group: "System",         description: "Brand & account" },
 ];

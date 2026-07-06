@@ -130,21 +130,21 @@ email=user@example.com&password=...&csrfToken=...`}</code></pre>
               Live QA status for every Marqai module. Probes each AI-powered module's endpoint,
               returns functional coverage %, AI integration status (works/fallback/broken),
               smoke test status, open issues, and which Testing Strategies + AI Test Scenarios apply.
-              Also returns the full testing taxonomy (33 items). No permission required (read-only).
+              Also returns the full testing taxonomy (34 items: 15 strategies + 10 methodologies + 9 AI scenarios). No permission required (read-only).
             </div>
             <pre className="bg-muted p-2 rounded mt-2 text-xs overflow-x-auto"><code>{`// Response shape:
 {
   "ok": true,
   "generatedAt": "ISO timestamp",
   "summary": {
-    "totalModules": 17,
+    "totalModules": 18,
     "aiPowered": 8,
     "aiWorking": 8,
     "avgFunctionalCoverage": 95,
     "totalOpenIssues": 9
   },
   "reports": [{ "moduleId": "leads-generator", "moduleName": "Leads Generator", ... }],
-  "taxonomy": { "strategies": [...], "scenarios": [...] }
+  "taxonomy": { "strategies": [...], "methodologies": [...], "scenarios": [...] }
 }`}</code></pre>
           </div>
         </div>

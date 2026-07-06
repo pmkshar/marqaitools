@@ -94,7 +94,7 @@ export const TESTING_STRATEGIES: TestingCategory = {
     {
       id: "functional",
       name: "Functional Testing of all modules",
-      summary: "Each of the 14 modules exercises its full create-read-update-delete flow.",
+      summary: "Each of the 18 modules exercises its full create-read-update-delete flow.",
       description:
         "Module-by-module verification that every documented user flow works end-to-end. " +
         "For Marqai this means 14 module suites: Dashboard, SEO, Social, Scheduler, Image, " +
@@ -317,12 +317,12 @@ export const TESTING_STRATEGIES: TestingCategory = {
       summary: "Verify backups restore correctly and RTO/RPO targets are met.",
       description:
         "Quarterly disaster recovery drill: simulate Vercel region failure, restore from " +
-        "backup, verify all 14 modules come back online within RTO (1 hour). Verify database " +
+        "backup, verify all 18 modules come back online within RTO (1 hour). Verify database " +
         "backups (Prisma SQLite for dev, Postgres for prod) restore to a known-good state " +
         "and RPO (15 min) is met. Document the runbook and update after each drill.",
       examples: [
         "Restore Vercel project from git + fresh env vars → expect live in < 30 min",
-        "Restore Postgres from latest backup → expect 0 data loss, all 14 modules functional",
+        "Restore Postgres from latest backup → expect 0 data loss, all 18 modules functional",
         "Failover to backup Z.AI key → expect AI features recover in < 5 min",
       ],
       passCriteria:

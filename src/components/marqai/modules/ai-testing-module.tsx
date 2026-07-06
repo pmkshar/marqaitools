@@ -578,7 +578,7 @@ function ModuleReportsSection() {
     return (
       <Card>
         <CardContent>
-          <LoadingState message="Probing all 17 modules — running AI ping for each AI-powered module..." />
+          <LoadingState message="Probing all 18 modules — running AI ping for each AI-powered module..." />
         </CardContent>
       </Card>
     );

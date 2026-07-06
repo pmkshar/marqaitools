@@ -51,6 +51,8 @@ export const DEMO_ROLES: Role[] = [
       "website-builder": "view",
       "leads-generator": "execute",
       "ai-testing": "none",
+      "ai-testing-methodologies": "view",
+      reports: "view",
       team: "none",
       roles: "none",
       billing: "none",

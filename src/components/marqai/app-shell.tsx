@@ -14,9 +14,11 @@ import { VideoModule } from "./modules/video-module";
 import { EmailModule } from "./modules/email-module";
 import { AnalyzerModule } from "./modules/analyzer-module";
 import { AiTestingModule } from "./modules/ai-testing-module";
+import { AiTestingMethodologiesModule } from "./modules/ai-testing-methodologies-module";
 import { LogoBuilderModule } from "./modules/logo-builder-module";
 import { WebsiteBuilderModule } from "./modules/website-builder-module";
 import { LeadsGeneratorModule } from "./modules/leads-generator-module";
+import { ReportsModule } from "./modules/reports-module";
 import { RolesModule } from "./modules/roles-module";
 import { TeamModule } from "./modules/team-module";
 import { BillingModule } from "./modules/billing-module";
@@ -135,12 +137,16 @@ function renderModule(m: ModuleId, principal: ReturnType<typeof useMarqai.getSta
       return <AnalyzerModule />;
     case "ai-testing":
       return <AiTestingModule />;
+    case "ai-testing-methodologies":
+      return <AiTestingMethodologiesModule />;
     case "logo-builder":
       return <LogoBuilderModule />;
     case "website-builder":
       return <WebsiteBuilderModule />;
     case "leads-generator":
       return <LeadsGeneratorModule />;
+    case "reports":
+      return <ReportsModule />;
     case "roles":
       return <RolesModule />;
     case "team":
