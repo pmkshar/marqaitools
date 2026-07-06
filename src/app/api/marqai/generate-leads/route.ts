@@ -1,14 +1,20 @@
 // POST /api/marqai/generate-leads
 // Body: { productName, productCategory?, targetMarket?, criteria?, count? }
-// Returns: { leads: Lead[] }
+// Returns: { ok: true, leads: Lead[], source: "ai" | "fallback" }
 //
 // Uses ZAI to generate a list of qualified prospect companies for the
 // given product/service. Each lead has a fit-reason + score 0-100.
 // NOTE: AI-generated leads are starting points — emails are constructed
 // using common patterns (first.last@domain) and should always be
 // verified before sending.
+//
+// Robust parsing: handles bare arrays, {"companies":[...]}, truncated
+// JSON, and prose-wrapped responses. Falls back to mock data if the AI
+// is unavailable, so the UI never breaks — the `source` field tells
+// the client whether to show a "demo data" banner.
 import { NextRequest, NextResponse } from "next/server";
 import { getZai } from "@/lib/zai";
+import { extractLeads } from "@/lib/json-utils";
 import type { Lead } from "@/lib/marqai/types";
 
 export const runtime = "nodejs";
@@ -30,7 +36,7 @@ export async function POST(req: NextRequest) {
     }
     const count = Math.min(Math.max(body.count ?? 12, 3), 25);
 
-    const sys = `You are Marqai's B2B lead-generation analyst. Generate a list of ${count} realistic prospect companies that would be strong potential buyers for the product below. Return strict JSON: {"leads":[{...}]}. Do NOT include any prose.`;
+    const sys = `You are Marqai's B2B lead-generation analyst. Generate a list of ${count} realistic prospect companies that would be strong potential buyers for the product below. Return strict JSON: {"leads":[{...}]}. Do NOT include any prose, no markdown fences, no explanation — only the JSON.`;
     const user = `Product/Service: ${body.productName}
 Category: ${body.productCategory ?? "General B2B"}
 Target market: ${body.targetMarket ?? "Global"}
@@ -50,22 +56,57 @@ For each lead, return a JSON object with EXACTLY these keys:
   "score": number (0-100, higher = better fit)
 }
 
-Vary industries and sizes. Use real-sounding (not generic) company names. Do NOT use Fortune-100 companies — pick mid-market to upper-SMB targets. Return exactly ${count} leads. JSON only.`;
+Vary industries and sizes. Use real-sounding (not generic) company names. Do NOT use Fortune-100 companies — pick mid-market to upper-SMB targets. Return exactly ${count} leads. JSON only — start your response with { and end with }.`;
 
-    const zai = await getZai();
-    const completion = await zai.chat.completions.create({
-      messages: [
-        { role: "system", content: sys },
-        { role: "user", content: user },
-      ],
-      temperature: 0.85,
-      max_tokens: 3500,
-    });
+    // Try the AI call. If anything goes wrong, fall back to mock data
+    // so the user always sees leads in the UI.
+    let aiRaw = "";
+    let aiError: string | null = null;
+    let rawLeads: any[] = [];
 
-    const raw = completion.choices?.[0]?.message?.content ?? "";
-    const parsed = extractJson(raw);
-    const rawLeads: any[] = parsed?.leads ?? [];
+    try {
+      const zai = await getZai();
+      const completion = await zai.chat.completions.create({
+        messages: [
+          { role: "system", content: sys },
+          { role: "user", content: user },
+        ],
+        temperature: 0.85,
+        max_tokens: 4096,
+      });
+      aiRaw = completion.choices?.[0]?.message?.content ?? "";
+      rawLeads = extractLeads(aiRaw);
+    } catch (e) {
+      aiError = e instanceof Error ? e.message : String(e);
+    }
 
+    // If AI returned 0 leads despite succeeding, retry once with a
+    // simpler prompt and lower count.
+    if (rawLeads.length === 0 && !aiError) {
+      try {
+        const zai = await getZai();
+        const retry = await zai.chat.completions.create({
+          messages: [
+            {
+              role: "system",
+              content: `Return JSON: {"leads":[{"companyName":"","website":"","industry":"","size":"11-50","location":"","linkedin":"","contactName":"","contactTitle":"","fitReason":"","score":75}]}. Generate ${Math.min(
+                count,
+                8,
+              )} realistic mid-market B2B companies that would buy this product. No prose.`,
+            },
+            { role: "user", content: `Product: ${body.productName}` },
+          ],
+          temperature: 0.7,
+          max_tokens: 3000,
+        });
+        aiRaw = retry.choices?.[0]?.message?.content ?? "";
+        rawLeads = extractLeads(aiRaw);
+      } catch (e) {
+        aiError = e instanceof Error ? e.message : String(e);
+      }
+    }
+
+    // Map raw leads to the Lead type.
     const leads: Lead[] = rawLeads.slice(0, count).map((l, idx) => {
       const score = clampInt(l.score ?? 50, 0, 100);
       const email = predictEmail(l.contactName, l.website);
@@ -87,10 +128,25 @@ Vary industries and sizes. Use real-sounding (not generic) company names. Do NOT
       };
     });
 
+    // If AI failed entirely, return mock leads so the UI works.
     if (leads.length === 0) {
-      return NextResponse.json({ error: "AI returned no leads" }, { status: 502 });
+      const mockLeads = generateMockLeads(body, count);
+      return NextResponse.json({
+        ok: true,
+        leads: mockLeads,
+        source: "fallback",
+        warning: aiError
+          ? `AI service unavailable (${aiError}). Showing sample leads for demonstration.`
+          : `AI returned no parseable leads. Showing sample leads. Raw preview: ${aiRaw.slice(0, 200)}`,
+      });
     }
-    return NextResponse.json({ ok: true, leads });
+
+    return NextResponse.json({
+      ok: true,
+      leads,
+      source: "ai",
+      ...(aiError ? { warning: aiError } : {}),
+    });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return NextResponse.json({ error: msg }, { status: 500 });
@@ -108,34 +164,106 @@ function predictEmail(contactName: string | undefined, website: string | undefin
   if (parts.length < 2) return undefined;
   const [first, last] = parts;
   const domain = website.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
-  // Try first.last pattern (most common)
   return `${first}.${last}@${domain}`;
 }
 
-function extractJson(text: string): any | null {
-  if (!text) return null;
-  let t = text.trim();
-  const fence = t.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  if (fence) t = fence[1].trim();
-  const start = t.indexOf("{");
-  if (start === -1) return null;
-  let depth = 0;
-  let inStr = false;
-  let esc = false;
-  for (let i = start; i < t.length; i++) {
-    const c = t[i];
-    if (esc) { esc = false; continue; }
-    if (c === "\\") { esc = true; continue; }
-    if (c === '"') inStr = !inStr;
-    if (inStr) continue;
-    if (c === "{") depth++;
-    else if (c === "}") {
-      depth--;
-      if (depth === 0) {
-        const slice = t.slice(start, i + 1);
-        try { return JSON.parse(slice); } catch { return null; }
-      }
-    }
+/**
+ * Generate realistic-looking mock leads when the AI is unavailable.
+ * Names/contacts are clearly sample data — the `source: "fallback"`
+ * flag tells the client to show a "demo data" banner.
+ */
+function generateMockLeads(body: Body, count: number): Lead[] {
+  const industries = [
+    "Marketing Agency",
+    "IT Services",
+    "E-commerce",
+    "Manufacturing",
+    "SaaS",
+    "Consulting",
+    "Healthcare",
+    "Financial Services",
+    "Education",
+    "Real Estate",
+    "Logistics",
+    "Media & Publishing",
+  ];
+  const cities = [
+    "Austin, USA",
+    "Berlin, Germany",
+    "Vancouver, Canada",
+    "London, UK",
+    "Singapore",
+    "Sydney, Australia",
+    "Bengaluru, India",
+    "Toronto, Canada",
+    "Amsterdam, Netherlands",
+    "Dublin, Ireland",
+    "São Paulo, Brazil",
+    "Tokyo, Japan",
+  ];
+  const sizes: Lead["size"][] = ["1-10", "11-50", "51-200", "201-1000", "1000+"];
+  const titles = [
+    "Chief Operating Officer",
+    "VP Marketing",
+    "Head of Growth",
+    "Director of Sales",
+    "Managing Director",
+    "CMO",
+    "Founder & CEO",
+    "Head of Customer Success",
+  ];
+  const firstNames = [
+    "Sarah", "Marcus", "Jennifer", "David", "Priya", "Liam", "Sofia", "Daniel",
+    "Aisha", "Noah", "Mia", "Ethan", "Olivia", "Lucas", "Emma", "Raj",
+  ];
+  const lastNames = [
+    "Mitchell", "Weber", "Rodriguez", "Chen", "Patel", "Johnson", "Silva", "Kim",
+    "Anderson", "Müller", "Garcia", "Wong", "Brown", "Nair", "Lopez", "Tanaka",
+  ];
+  const prefixWords = [
+    "Bright", "Tech", "Green", "Precision", "Apex", "Nimbus", "Vertex", "Quantum",
+    "Summit", "Pioneer", "Catalyst", "Stellar", "Pulse", "Forge", "Lumen", "Echo",
+  ];
+  const suffixWords = [
+    "Wave", "Nova", "Leaf", "Engineering", "Labs", "Cloud", "Hub", "Works",
+    "Systems", "Group", "Solutions", "Digital", "Forge", "Studio", "Co", "AI",
+  ];
+
+  const leads: Lead[] = [];
+  const productLower = body.productName.toLowerCase();
+  const seed = productLower.length;
+
+  for (let i = 0; i < count; i++) {
+    const idx = (seed + i * 7) % prefixWords.length;
+    const idx2 = (seed + i * 11) % suffixWords.length;
+    const companyName = `${prefixWords[idx]}${suffixWords[idx2]}`;
+    const industry = industries[(seed + i) % industries.length];
+    const location = cities[(seed + i) % cities.length];
+    const size = sizes[(seed + i) % sizes.length];
+    const contactName = `${firstNames[(seed + i) % firstNames.length]} ${lastNames[(seed + i * 3) % lastNames.length]}`;
+    const contactTitle = titles[(seed + i) % titles.length];
+    const score = 60 + ((seed + i * 13) % 35); // 60-94
+    const website = `${companyName.toLowerCase().replace(/[^a-z]/g, "")}.com`;
+    const email = predictEmail(contactName, website);
+    const fitReason = `Mid-market ${industry.toLowerCase()} in ${location.split(",")[0]} with ${size} employees — likely to have budget and authority to evaluate ${body.productName}.`;
+
+    leads.push({
+      id: `mock-lead-${Date.now()}-${i}`,
+      companyName,
+      website,
+      industry,
+      size,
+      location,
+      linkedin: `linkedin.com/company/${companyName.toLowerCase().replace(/[^a-z]/g, "-")}`,
+      contactName,
+      contactTitle,
+      fitReason,
+      score,
+      email,
+      status: "new",
+      createdAt: new Date().toISOString(),
+    });
   }
-  return null;
+
+  return leads;
 }

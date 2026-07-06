@@ -1,11 +1,13 @@
 // POST /api/marqai/generate-website
 // Body: { brandName, product, audience?, palette?, tone? }
-// Returns: { sections: [{type, html}], html: string }
+// Returns: { ok: true, sections: [{type, html}], html: string, source: "ai"|"fallback" }
 //
 // Uses ZAI to draft copy + section HTML, then assembles a self-contained
-// HTML document the client can preview / download.
+// HTML document the client can preview / download. Falls back to a
+// template-generated landing page if the AI is unavailable.
 import { NextRequest, NextResponse } from "next/server";
 import { getZai } from "@/lib/zai";
+import { extractJson } from "@/lib/json-utils";
 import type { WebsiteSection } from "@/lib/marqai/types";
 
 export const runtime = "nodejs";
@@ -53,7 +55,7 @@ Return strict JSON.`;
         { role: "user", content: user },
       ],
       temperature: 0.7,
-      max_tokens: 3500,
+      max_tokens: 4096,
     });
 
     const raw = completion.choices?.[0]?.message?.content ?? "";
@@ -64,12 +66,21 @@ Return strict JSON.`;
         html: String(s.html ?? ""),
       })) ?? [];
 
+    // If AI returned no sections, fall back to a template-generated page.
     if (sections.length === 0) {
-      return NextResponse.json({ error: "AI returned no sections" }, { status: 502 });
+      const fallbackSections = buildFallbackSections(body, palette);
+      const fullHtml = assembleHtmlDocument(body, fallbackSections, palette);
+      return NextResponse.json({
+        ok: true,
+        sections: fallbackSections,
+        html: fullHtml,
+        source: "fallback",
+        warning: `AI returned no parseable sections. Showing template landing page.`,
+      });
     }
 
     const fullHtml = assembleHtmlDocument(body, sections, palette);
-    return NextResponse.json({ ok: true, sections, html: fullHtml });
+    return NextResponse.json({ ok: true, sections, html: fullHtml, source: "ai" });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return NextResponse.json({ error: msg }, { status: 500 });
@@ -130,30 +141,41 @@ function escapeHtml(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
-function extractJson(text: string): any | null {
-  if (!text) return null;
-  let t = text.trim();
-  const fence = t.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  if (fence) t = fence[1].trim();
-  const start = t.indexOf("{");
-  if (start === -1) return null;
-  let depth = 0;
-  let inStr = false;
-  let esc = false;
-  for (let i = start; i < t.length; i++) {
-    const c = t[i];
-    if (esc) { esc = false; continue; }
-    if (c === "\\") { esc = true; continue; }
-    if (c === '"') inStr = !inStr;
-    if (inStr) continue;
-    if (c === "{") depth++;
-    else if (c === "}") {
-      depth--;
-      if (depth === 0) {
-        const slice = t.slice(start, i + 1);
-        try { return JSON.parse(slice); } catch { return null; }
-      }
-    }
-  }
-  return null;
+/**
+ * Template-generated landing-page sections — used when the AI is
+ * unavailable or returns unparseable output. Produces a clean, branded
+ * 6-section page so the UI always has something to show.
+ */
+function buildFallbackSections(b: Body, palette: string[]): WebsiteSection[] {
+  const [primary] = palette;
+  const safeBrand = escapeHtml(b.brandName);
+  const safeProduct = escapeHtml(b.product);
+  const safeAudience = escapeHtml(b.audience ?? "modern teams");
+
+  return [
+    {
+      type: "hero",
+      html: `<section><div class="container" style="text-align:center;padding:96px 0;"><h1>${safeBrand} — ${safeProduct} for ${safeAudience}</h1><p style="font-size:1.25rem;max-width:720px;margin:0 auto 24px;">Grow faster with a streamlined, modern platform built for ${safeAudience}. Set up in minutes, scale with confidence.</p><a class="btn" href="#" style="background:${primary};">Start free trial</a></div></section>`,
+    },
+    {
+      type: "features",
+      html: `<section><div class="container"><h2 style="text-align:center;">Why teams choose ${safeBrand}</h2><div class="grid grid-3" style="margin-top:32px;"><div class="card"><div class="icon">⚡</div><h3>Fast</h3><p>Optimized for speed and reliability at every scale.</p></div><div class="card"><div class="icon">🔒</div><h3>Secure</h3><p>Enterprise-grade security with audit logs and SSO.</p></div><div class="card"><div class="icon">📈</div><h3>Scalable</h3><p>From your first user to your millionth, we scale with you.</p></div></div></div></section>`,
+    },
+    {
+      type: "testimonial",
+      html: `<section><div class="container"><div class="testimonial"><p style="font-size:1.5rem;font-style:italic;">"${safeBrand} transformed how our team ships. We saw a 40% lift in productivity in the first month."</p><p style="margin-top:16px;"><strong>Alex Chen</strong> — VP Engineering, TechCorp</p></div></div></section>`,
+    },
+    {
+      type: "pricing",
+      html: `<section><div class="container"><h2 style="text-align:center;">Simple pricing</h2><div class="grid grid-3" style="margin-top:32px;"><div class="pricing-tier"><h3>Starter</h3><div class="price">$29</div><p>For small teams</p><p>Up to 5 users<br>Basic analytics<br>Email support</p></div><div class="pricing-tier featured"><h3>Pro</h3><div class="price">$99</div><p>For growing teams</p><p>Up to 25 users<br>Advanced analytics<br>Priority support</p></div><div class="pricing-tier"><h3>Enterprise</h3><div class="price">Custom</div><p>For large orgs</p><p>Unlimited users<br>SSO + audit logs<br>Dedicated CSM</p></div></div></div></section>`,
+    },
+    {
+      type: "faq",
+      html: `<section><div class="container" style="max-width:800px;"><h2 style="text-align:center;">FAQ</h2><div class="faq-item"><h3>How does the free trial work?</h3><p>14 days, no credit card required. Full access to all Pro features.</p></div><div class="faq-item"><h3>Can I change plans later?</h3><p>Yes — upgrade or downgrade anytime. Changes apply on the next billing cycle.</p></div><div class="faq-item"><h3>Do you offer discounts?</h3><p>Annual plans get 20% off. Non-profits get 50% off.</p></div><div class="faq-item"><h3>How do I cancel?</h3><p>One click in your dashboard. No emails, no retention calls.</p></div></div></section>`,
+    },
+    {
+      type: "cta",
+      html: `<section class="cta"><div class="container"><h2>Ready to get started?</h2><p>Join thousands of teams using ${safeBrand}.</p><form style="margin-top:24px;"><input type="email" placeholder="you@company.com"/><button class="btn" style="background:#fff;color:${primary};margin-left:8px;">Get started</button></form></div></section>`,
+    },
+  ];
 }

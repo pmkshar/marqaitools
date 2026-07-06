@@ -40,6 +40,7 @@ export function LeadsGeneratorModule() {
   const [count, setCount] = useState(12);
   const [generating, setGenerating] = useState(false);
   const [activeListId, setActiveListId] = useState<string | null>(null);
+  const [fallbackWarning, setFallbackWarning] = useState<string | null>(null);
 
   const activeList = leadLists.find((l) => l.id === activeListId) ?? leadLists[0] ?? null;
 
@@ -49,6 +50,7 @@ export function LeadsGeneratorModule() {
       return;
     }
     setGenerating(true);
+    setFallbackWarning(null);
     try {
       const res = await fetch("/api/marqai/generate-leads", {
         method: "POST",
@@ -57,6 +59,15 @@ export function LeadsGeneratorModule() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Lead generation failed");
+
+      // Surface fallback-mode warning to the user (AI unavailable → sample leads shown).
+      if (data.source === "fallback" && data.warning) {
+        setFallbackWarning(data.warning);
+        toast.warning("Showing sample leads", { description: "AI service is unavailable — using demo data." });
+      } else {
+        setFallbackWarning(null);
+        toast.success(`Generated ${data.leads.length} leads`, { description: "AI prospects ready for outreach" });
+      }
 
       const list: LeadList = {
         id: uid("ll"),
@@ -70,7 +81,6 @@ export function LeadsGeneratorModule() {
       };
       addLeadList(list);
       setActiveListId(list.id);
-      toast.success(`Generated ${data.leads.length} leads`, { description: "AI prospects ready for outreach" });
     } catch (e) {
       toast.error("Lead generation failed", { description: e instanceof Error ? e.message : "" });
     } finally {
@@ -140,6 +150,25 @@ export function LeadsGeneratorModule() {
         <KpiCard label="Avg score" value={activeList ? String(avgScore) : "—"} icon={Trophy} accent="amber" />
         <KpiCard label="Won (active list)" value={String(wonCount)} icon={Trophy} accent="emerald" />
       </div>
+
+      {/* FALLBACK WARNING BANNER */}
+      {fallbackWarning && (
+        <div className="rounded-md bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-900">
+          <div className="flex items-start gap-2">
+            <span className="text-base leading-none">⚠️</span>
+            <div className="flex-1">
+              <strong className="block mb-0.5">AI service unavailable — showing sample leads</strong>
+              <span className="text-xs text-amber-800">{fallbackWarning}</span>
+            </div>
+            <button
+              onClick={() => setFallbackWarning(null)}
+              className="text-amber-700 hover:text-amber-900 text-xs underline"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-5">
         {/* CONFIG */}
