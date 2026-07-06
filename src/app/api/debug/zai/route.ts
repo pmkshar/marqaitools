@@ -138,12 +138,21 @@ async function probeMultipleModels(baseUrl: string, label: string): Promise<any>
   if (!apiKey) return null;
 
   const modelsToTry = [
+    // Z.AI international newer lineup (most likely to work)
+    "glm-4.5-flash",
+    "glm-4.6-flash",
+    "glm-4.5-air",
+    "glm-4.5-x",
+    "glm-4.6-x",
+    "glm-zero-preview",
+    // Legacy / BigModel China lineup
     "glm-4-flash",
     "glm-4-flashx",
     "glm-4-air",
     "glm-4-airx",
     "glm-4",
     "glm-4-long",
+    // Paid models on both deployments
     "glm-4-plus",
     "glm-4.5",
     "glm-4.6",
