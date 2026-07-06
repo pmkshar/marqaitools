@@ -184,22 +184,58 @@ async function tryBigModelFallback(): Promise<any> {
   }
 
   const firstOk = probeResults.find((r) => r.ok);
+  // Detect the "key is BigModel China + account has zero balance" pattern:
+  // some models return 1211 (not recognized) and others return 1113
+  // (insufficient balance). This means the key IS valid for BigModel
+  // China, the paid models ARE recognized, but the account has no credit.
+  const recognizedButNoBalance = probeResults.filter(
+    (r) => !r.ok && r.error && (r.error.includes('"code":"1113"') || r.error.includes("余额不足") || r.error.includes("insufficient balance")),
+  );
+  const anyRecognized = recognizedButNoBalance.length > 0;
+
+  let recommendation: string;
+  if (firstOk) {
+    recommendation = `WORKS on BigModel China with model '${firstOk.model}'! ` +
+      "Fix: in Vercel env vars set BOTH:\n" +
+      `  ZAI_BASE_URL=${BIGMODEL_CN_BASE}\n` +
+      `  ZAI_MODEL=${firstOk.model}\n` +
+      "Then trigger a Redeploy.";
+  } else if (anyRecognized) {
+    const recognizedModelNames = recognizedButNoBalance.map((r) => r.model).join(", ");
+    recommendation =
+      "ROOT CAUSE FOUND: Your API key was issued by BigModel China " +
+      "(open.bigmodel.cn), NOT by Z.AI international (api.z.ai). The " +
+      "key is valid, but your BigModel China account has ZERO BALANCE — " +
+      "error code 1113 '余额不足或无可用资源包,请充值' (insufficient balance, " +
+      "please recharge). The free-tier models (glm-4-flash etc.) return " +
+      "1211 'model does not exist' on your account, likely because they " +
+      "were disabled or you're on a paid-only tier.\n\n" +
+      "To fix, do BOTH:\n" +
+      "1. Recharge your BigModel China account at https://open.bigmodel.cn " +
+      "   (login → console → billing → add credit). At least ¥1 is enough " +
+      "   for thousands of glm-4.5 calls.\n" +
+      "2. In Vercel → Project → Settings → Environment Variables, set:\n" +
+      `     ZAI_BASE_URL=${BIGMODEL_CN_BASE}\n` +
+      `     ZAI_MODEL=glm-4.5   (or one of: ${recognizedModelNames})\n` +
+      "   Then trigger a Redeploy.\n\n" +
+      "Alternative: get a fresh key from https://z.ai (international) " +
+      "instead, which gives you free-tier access to glm-4-flash with no " +
+      "recharge needed. Just paste the new key into ZAI_API_KEY on Vercel.";
+  } else {
+    recommendation = "All model probes failed on BigModel China. The key is likely:\n" +
+      "  (a) Invalid/expired — get a fresh key from https://open.bigmodel.cn → API Keys\n" +
+      "  (b) A free-tier key with NO models activated — log into the Z.AI / BigModel\n" +
+      "      dashboard and check 'Model Garden' / 'API Keys' to confirm chat-completions\n" +
+      "      is enabled for at least one model.\n" +
+      "  (c) A key from a completely different deployment (custom enterprise endpoint).";
+  }
+
   return {
     endpoint: BIGMODEL_CN_BASE,
     probedModels: probeResults,
     workingModel: firstOk?.model ?? null,
-    recommendation: firstOk
-      ? `WORKS on BigModel China with model '${firstOk.model}'! ` +
-        "Fix: in Vercel env vars set BOTH:\n" +
-        `  ZAI_BASE_URL=${BIGMODEL_CN_BASE}\n` +
-        `  ZAI_MODEL=${firstOk.model}\n` +
-        "Then trigger a Redeploy."
-      : "All model probes failed on BigModel China. The key is likely:\n" +
-        "  (a) Invalid/expired — get a fresh key from https://open.bigmodel.cn → API Keys\n" +
-        "  (b) A free-tier key with NO models activated — log into the Z.AI / BigModel\n" +
-        "      dashboard and check 'Model Garden' / 'API Keys' to confirm chat-completions\n" +
-        "      is enabled for at least one model.\n" +
-        "  (c) A key from a completely different deployment (custom enterprise endpoint).",
+    recognizedModels: recognizedButNoBalance.map((r) => r.model),
+    recommendation,
   };
 }
 
