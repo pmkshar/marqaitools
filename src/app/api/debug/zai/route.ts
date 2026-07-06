@@ -98,13 +98,21 @@ export async function GET() {
 
 function classifyError(msg: string): string {
   const m = msg.toLowerCase();
+  if (m.includes('"code":"1211"') || m.includes("unknown model")) {
+    return "Z.AI returned code 1211 'Unknown Model'. The model name set in " +
+      "ZAI_MODEL (or the default) is not available on your Z.AI plan. " +
+      "The current default is glm-4-flash (free tier, available on every " +
+      "account). If you override ZAI_MODEL, use a model your plan supports: " +
+      "free tier → glm-4-flash, glm-4-flashx; paid tier → glm-4, glm-4-air, " +
+      "glm-4-plus, glm-4-long, glm-4.5, glm-4.6. After changing the env var " +
+      "on Vercel, trigger a Redeploy.";
+  }
   if (m.includes('"code":"500"') || m.includes("'code':'500'")) {
     return "Z.AI returned a sparse {\"error\":{\"code\":\"500\"}} envelope. " +
       "This is Z.AI's way of saying the request body was malformed — most " +
-      "commonly a MISSING or INVALID 'model' parameter. The fix is to set " +
-      "ZAI_MODEL to a valid value (e.g. glm-4, glm-4-flash, glm-4-air, " +
-      "glm-4-plus). It can also indicate the key has no access to the " +
-      "requested model — try glm-4-flash first (free tier).";
+      "commonly a MISSING 'model' parameter. The app now sends model=" +
+      "glm-4-flash by default. If you overrode ZAI_MODEL to an invalid " +
+      "value, clear it or set it to a valid model name.";
   }
   if (m.includes("401") || m.includes("unauthorized")) {
     return "API key is invalid, expired, or wrong for this base URL. " +

@@ -149,10 +149,14 @@ Vary industries and sizes. Use real-sounding (not generic) company names. Do NOT
       const mockLeads = generateMockLeads(body, count);
       const isSparse500 =
         aiError && (aiError.includes('"code":"500"') || /code.*500/i.test(aiError));
+      const isUnknownModel =
+        aiError && (aiError.includes('"code":"1211"') || /unknown model/i.test(aiError));
       const diag = aiError
-        ? isSparse500
-          ? `Z.AI returned {"error":{"code":"500"}} — this means the 'model' parameter is missing or invalid. The app now sends model=glm-4 by default. If you still see this, set ZAI_MODEL env var to a valid model name (glm-4, glm-4-flash, glm-4-air, glm-4-plus). Original error: ${aiError}`
-          : `AI error: ${aiError}`
+        ? isUnknownModel
+          ? `Z.AI says the model is not available on your plan (code 1211). The app uses model=glm-4-flash by default (free tier). If you set ZAI_MODEL env var, switch to a model your plan supports. Original error: ${aiError}`
+          : isSparse500
+            ? `Z.AI returned {"error":{"code":"500"}} — this means the 'model' parameter is missing or invalid. The app now sends model=glm-4-flash by default. Original error: ${aiError}`
+            : `AI error: ${aiError}`
         : `AI returned no parseable leads (response shape=${diagnosticShape || "unknown"}, content length=${aiRaw.length}). Preview: ${aiRaw.slice(0, 200) || "(empty)"}`;
       return NextResponse.json({
         ok: true,
@@ -165,12 +169,15 @@ Vary industries and sizes. Use real-sounding (not generic) company names. Do NOT
           contentPreview: aiRaw.slice(0, 300),
           error: aiError,
           isSparse500,
-          modelUsed: process.env.ZAI_MODEL ?? "glm-4",
+          isUnknownModel,
+          modelUsed: process.env.ZAI_MODEL ?? "glm-4-flash",
           endpoint: process.env.ZAI_BASE_URL ?? "https://api.z.ai/api/paas/v4",
           hasKey: Boolean(process.env.ZAI_API_KEY),
-          hint: isSparse500
-            ? "Set ZAI_MODEL env var on Vercel to a valid model (e.g. glm-4-flash for the free tier, or glm-4-plus for higher quality). Then Redeploy."
-            : "Open /api/debug/zai to run a full connectivity test.",
+          hint: isUnknownModel
+            ? "Set ZAI_MODEL env var on Vercel to a model your plan supports (glm-4-flash for free tier, or glm-4 / glm-4-plus for paid). Then Redeploy."
+            : isSparse500
+              ? "Set ZAI_MODEL env var on Vercel to a valid model (glm-4-flash for the free tier). Then Redeploy."
+              : "Open /api/debug/zai to run a full connectivity test.",
         },
       });
     }

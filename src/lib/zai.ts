@@ -27,18 +27,22 @@ const DEFAULT_BASE_URL = "https://api.z.ai/api/paas/v4";
 // model — if you omit it, api.z.ai returns a sparse
 // {"error":{"code":"500"}} envelope with HTTP 200 (a known Z.AI quirk).
 // Override with ZAI_MODEL env var. Common values on api.z.ai/api/paas/v4:
-//   glm-4              — standard, good quality, moderate cost
-//   glm-4-flash        — fast + free tier, lower quality
-//   glm-4-air          — fast + cheap
-//   glm-4-plus         — better quality
-//   glm-4-long         — long context
-//   glm-4.5            — newest (supports thinking mode)
-const DEFAULT_MODEL = "glm-4";
+//   glm-4-flash        — FREE tier, available on every account (default)
+//   glm-4-flashx       — free, faster
+//   glm-4-air          — cheap
+//   glm-4              — standard, requires paid plan
+//   glm-4-plus         — better quality, paid
+//   glm-4-long         — long context, paid
+//   glm-4.5 / glm-4.6  — newest, paid
+// We default to glm-4-flash because it works on every Z.AI account
+// (including free tier). If you have a paid plan, set ZAI_MODEL=glm-4
+// or glm-4-plus for higher quality.
+const DEFAULT_MODEL = "glm-4-flash";
 
 // Default model for image generation. Z.AI image API also requires an
 // explicit model. Override with ZAI_IMAGE_MODEL env var.
-// Common values: cogview-3-plus (premium), cogview-3-flash (free tier).
-const DEFAULT_IMAGE_MODEL = "cogview-3-plus";
+// Common values: cogview-3-flash (free tier, default), cogview-3-plus (paid).
+const DEFAULT_IMAGE_MODEL = "cogview-3-flash";
 
 /**
  * Returns the model name to pass to chat.completions.create().
@@ -162,9 +166,11 @@ export function getZaiDiagnostics() {
       "If hasKey=false on Vercel Production, the env var is missing or " +
       "not enabled for the Production environment. If hasKey=true but " +
       "requests fail with 401, the key value is wrong or expired. If " +
-      "the API returns {\"error\":{\"code\":\"500\"}}, the model name " +
-      "is wrong or not available on your Z.AI plan — set ZAI_MODEL to " +
-      "a valid value (e.g. glm-4, glm-4-flash, glm-4-air, glm-4-plus).",
+      "the API returns {\"error\":{\"code\":\"500\"}}, the request body " +
+      "was malformed (most commonly missing 'model'). If the API returns " +
+      "code 1211 'Unknown Model', the model name is not available on " +
+      "your Z.AI plan — default is glm-4-flash (free tier); for higher " +
+      "quality set ZAI_MODEL=glm-4 or glm-4-plus (requires paid plan).",
   };
 }
 

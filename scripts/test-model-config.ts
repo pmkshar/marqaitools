@@ -18,9 +18,10 @@ console.log("\n=== Assertions ===");
 const checks = [
   { name: "model is set", ok: Boolean(diag.model) },
   { name: "imageModel is set", ok: Boolean(diag.imageModel) },
-  { name: "defaultModel is glm-4", ok: diag.defaultModel === "glm-4" },
-  { name: "defaultImageModel is cogview-3-plus", ok: diag.defaultImageModel === "cogview-3-plus" },
+  { name: "defaultModel is glm-4-flash", ok: diag.defaultModel === "glm-4-flash" },
+  { name: "defaultImageModel is cogview-3-flash", ok: diag.defaultImageModel === "cogview-3-flash" },
   { name: "note mentions 500 error", ok: diag.note.includes("500") },
+  { name: "note mentions 1211 error", ok: diag.note.includes("1211") },
   { name: "note mentions ZAI_MODEL", ok: diag.note.includes("ZAI_MODEL") },
 ];
 
