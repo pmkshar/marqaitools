@@ -21,6 +21,7 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 const BIGMODEL_CN_BASE = "https://open.bigmodel.cn/api/paas/v4";
+const INTERNATIONAL_BASE = "https://api.z.ai/api/paas/v4";
 
 export async function GET() {
   const diag = getZaiDiagnostics();
@@ -30,6 +31,7 @@ export async function GET() {
     config: diag,
     connectivity: null as any,
     error: null as any,
+    internationalProbe: null as any,
     fallbackTest: null as any,
   };
 
@@ -93,9 +95,12 @@ export async function GET() {
             "If the shape is new, update src/lib/zai-response.ts to handle it.",
       };
 
-      // If we got a sparse 500 or 1211, try the BigModel China deployment
-      // as a fallback to see if the key was issued there.
+      // If we got a sparse 500 or 1211, probe BOTH the international
+      // endpoint with multiple models AND the BigModel China deployment
+      // so we can definitively identify which deployment the key belongs
+      // to and which model is actually available.
       if (isSparse500 || errMsg.includes('"code":"1211"') || /unknown model/i.test(errMsg)) {
+        result.internationalProbe = await probeMultipleModels(INTERNATIONAL_BASE, "international");
         result.fallbackTest = await tryBigModelFallback();
       }
     }
@@ -108,9 +113,11 @@ export async function GET() {
       hint: classifyError(msg),
     };
 
-    // If the request failed with 1211 (Unknown Model), the key might be
-    // for the BigModel China deployment. Auto-test that to confirm.
+    // If the request failed with 1211 (Unknown Model), probe BOTH
+    // endpoints to definitively identify which deployment the key
+    // belongs to.
     if (msg.includes('"code":"1211"') || /unknown model/i.test(msg)) {
+      result.internationalProbe = await probeMultipleModels(INTERNATIONAL_BASE, "international");
       result.fallbackTest = await tryBigModelFallback();
     }
   }
@@ -119,19 +126,17 @@ export async function GET() {
 }
 
 /**
- * Try the same API key against the BigModel China deployment. If it
- * works, the user's key was issued by BigModel China and they should
- * set ZAI_BASE_URL=https://open.bigmodel.cn/api/paas/v4 on Vercel.
+ * Probe a single endpoint with multiple models. Returns per-model results
+ * plus an overall classification: which models were recognized (vs 1211),
+ * which had zero balance (vs 1113), and which actually worked.
  *
- * Also tries multiple model names so we can identify which one the
- * key actually supports (in case the default glm-4-flash has been
- * renamed or is not activated on the user's account).
+ * This is the definitive way to identify which deployment a key belongs
+ * to AND which model to use with it.
  */
-async function tryBigModelFallback(): Promise<any> {
+async function probeMultipleModels(baseUrl: string, label: string): Promise<any> {
   const apiKey = process.env.ZAI_API_KEY ?? "";
   if (!apiKey) return null;
 
-  // Try a list of likely-valid model names. Order: free/cheap first.
   const modelsToTry = [
     "glm-4-flash",
     "glm-4-flashx",
@@ -144,17 +149,12 @@ async function tryBigModelFallback(): Promise<any> {
     "glm-4.6",
   ];
 
-  // First, confirm the key works at all on BigModel China (any model).
-  // Then run a broader model probe to find a working model name.
   const ZAICtor = ZAI as any;
   const probeResults: any[] = [];
 
   for (const model of modelsToTry) {
     try {
-      const client = new ZAICtor({
-        baseUrl: BIGMODEL_CN_BASE,
-        apiKey,
-      });
+      const client = new ZAICtor({ baseUrl, apiKey });
       const raw = await client.chat.completions.create({
         model,
         messages: [
@@ -172,7 +172,7 @@ async function tryBigModelFallback(): Promise<any> {
         reply: extracted.content.slice(0, 50),
         error: extracted.error,
       });
-      if (worked) break; // first working model is enough
+      if (worked) break;
     } catch (e: any) {
       const msg = e?.message ?? String(e);
       probeResults.push({
@@ -183,6 +183,38 @@ async function tryBigModelFallback(): Promise<any> {
     }
   }
 
+  const firstOk = probeResults.find((r) => r.ok);
+  const recognizedButNoBalance = probeResults.filter(
+    (r) => !r.ok && r.error && (r.error.includes('"code":"1113"') || r.error.includes("余额不足") || r.error.includes("insufficient balance")),
+  );
+  const allUnknownModel = probeResults.every(
+    (r) => !r.ok && r.error && (r.error.includes('"code":"1211"') || r.error.includes("Unknown Model") || r.error.includes("模型不存在")),
+  );
+
+  return {
+    endpoint: baseUrl,
+    label,
+    probedModels: probeResults,
+    workingModel: firstOk?.model ?? null,
+    recognizedModels: recognizedButNoBalance.map((r) => r.model),
+    allModelsUnknown: allUnknownModel,
+  };
+}
+
+/**
+ * Try the same API key against the BigModel China deployment. If it
+ * works, the user's key was issued by BigModel China and they should
+ * set ZAI_BASE_URL=https://open.bigmodel.cn/api/paas/v4 on Vercel.
+ *
+ * Also tries multiple model names so we can identify which one the
+ * key actually supports (in case the default glm-4-flash has been
+ * renamed or is not activated on the user's account).
+ */
+async function tryBigModelFallback(): Promise<any> {
+  const probe = await probeMultipleModels(BIGMODEL_CN_BASE, "bigmodel-china");
+  if (!probe) return null;
+
+  const probeResults = probe.probedModels;
   const firstOk = probeResults.find((r) => r.ok);
   // Detect the "key is BigModel China + account has zero balance" pattern:
   // some models return 1211 (not recognized) and others return 1113
@@ -231,10 +263,7 @@ async function tryBigModelFallback(): Promise<any> {
   }
 
   return {
-    endpoint: BIGMODEL_CN_BASE,
-    probedModels: probeResults,
-    workingModel: firstOk?.model ?? null,
-    recognizedModels: recognizedButNoBalance.map((r) => r.model),
+    ...probe,
     recommendation,
   };
 }
