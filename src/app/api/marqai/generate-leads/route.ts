@@ -153,9 +153,9 @@ Vary industries and sizes. Use real-sounding (not generic) company names. Do NOT
         aiError && (aiError.includes('"code":"1211"') || /unknown model/i.test(aiError));
       const diag = aiError
         ? isUnknownModel
-          ? `Z.AI says the model is not available on your plan (code 1211). The app uses model=glm-4-flash by default (free tier). If you set ZAI_MODEL env var, switch to a model your plan supports. Original error: ${aiError}`
+          ? `Z.AI says the model is not available on your plan (code 1211). The app uses model=glm-4.5-flash by default (free tier on z.ai international). If you set ZAI_MODEL env var, switch to a model your plan supports. Original error: ${aiError}`
           : isSparse500
-            ? `Z.AI returned {"error":{"code":"500"}} — this means the 'model' parameter is missing or invalid. The app now sends model=glm-4-flash by default. Original error: ${aiError}`
+            ? `Z.AI returned {"error":{"code":"500"}} — this means the 'model' parameter is missing or invalid. The app now sends model=glm-4.5-flash by default. Original error: ${aiError}`
             : `AI error: ${aiError}`
         : `AI returned no parseable leads (response shape=${diagnosticShape || "unknown"}, content length=${aiRaw.length}). Preview: ${aiRaw.slice(0, 200) || "(empty)"}`;
       return NextResponse.json({
@@ -170,13 +170,13 @@ Vary industries and sizes. Use real-sounding (not generic) company names. Do NOT
           error: aiError,
           isSparse500,
           isUnknownModel,
-          modelUsed: process.env.ZAI_MODEL ?? "glm-4-flash",
+          modelUsed: process.env.ZAI_MODEL ?? "glm-4.5-flash",
           endpoint: process.env.ZAI_BASE_URL ?? "https://api.z.ai/api/paas/v4",
           hasKey: Boolean(process.env.ZAI_API_KEY),
           hint: isUnknownModel
-            ? "Set ZAI_MODEL env var on Vercel to a model your plan supports (glm-4-flash for free tier, or glm-4 / glm-4-plus for paid). Then Redeploy."
+            ? "Set ZAI_MODEL env var on Vercel to a model your plan supports (glm-4.5-flash for free tier, or glm-4.5 / glm-4-plus for paid). Then Redeploy."
             : isSparse500
-              ? "Set ZAI_MODEL env var on Vercel to a valid model (glm-4-flash for the free tier). Then Redeploy."
+              ? "Set ZAI_MODEL env var on Vercel to a valid model (glm-4.5-flash for the free tier). Then Redeploy."
               : "Open /api/debug/zai to run a full connectivity test.",
         },
       });

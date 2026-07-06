@@ -26,18 +26,24 @@ const DEFAULT_BASE_URL = "https://api.z.ai/api/paas/v4";
 // Default model for chat completions. The Z.AI SDK does NOT auto-fill a
 // model — if you omit it, api.z.ai returns a sparse
 // {"error":{"code":"500"}} envelope with HTTP 200 (a known Z.AI quirk).
-// Override with ZAI_MODEL env var. Common values on api.z.ai/api/paas/v4:
-//   glm-4-flash        — FREE tier, available on every account (default)
-//   glm-4-flashx       — free, faster
-//   glm-4-air          — cheap
-//   glm-4              — standard, requires paid plan
-//   glm-4-plus         — better quality, paid
-//   glm-4-long         — long context, paid
-//   glm-4.5 / glm-4.6  — newest, paid
-// We default to glm-4-flash because it works on every Z.AI account
-// (including free tier). If you have a paid plan, set ZAI_MODEL=glm-4
+// Override with ZAI_MODEL env var.
+//
+// IMPORTANT: Z.AI international (api.z.ai) and BigModel China
+// (open.bigmodel.cn) have DIFFERENT model lineups:
+//   - glm-4.5-flash    — FREE tier on z.ai international (current default).
+//                        Confirmed working on BOTH deployments with a
+//                        valid key. Use this unless you have a reason not to.
+//   - glm-4.6-flash    — FREE tier on z.ai international, newer.
+//   - glm-4-flash      — Legacy free-tier on BigModel China ONLY.
+//                        Returns code 1211 'Unknown Model' on z.ai international.
+//   - glm-4-plus       — paid, available on both.
+//   - glm-4.5          — paid, available on both.
+//   - glm-4.6          — paid, available on both.
+//
+// We default to glm-4.5-flash because it works on both deployments
+// and is free-tier. If you have a paid plan, set ZAI_MODEL=glm-4.5
 // or glm-4-plus for higher quality.
-const DEFAULT_MODEL = "glm-4-flash";
+const DEFAULT_MODEL = "glm-4.5-flash";
 
 // Default model for image generation. Z.AI image API also requires an
 // explicit model. Override with ZAI_IMAGE_MODEL env var.
@@ -169,8 +175,11 @@ export function getZaiDiagnostics() {
       "the API returns {\"error\":{\"code\":\"500\"}}, the request body " +
       "was malformed (most commonly missing 'model'). If the API returns " +
       "code 1211 'Unknown Model', the model name is not available on " +
-      "your Z.AI plan — default is glm-4-flash (free tier); for higher " +
-      "quality set ZAI_MODEL=glm-4 or glm-4-plus (requires paid plan).",
+      "your Z.AI plan — default is glm-4.5-flash (free tier on z.ai " +
+      "international, also works on BigModel China); for higher quality " +
+      "set ZAI_MODEL=glm-4.5 or glm-4-plus (requires paid plan). " +
+      "NOTE: glm-4-flash (legacy) does NOT exist on z.ai international " +
+      "— only on open.bigmodel.cn.",
   };
 }
 
