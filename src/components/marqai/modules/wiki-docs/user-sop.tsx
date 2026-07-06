@@ -126,7 +126,7 @@ export function UserSopDoc() {
       who: "Anyone with ai-testing: execute+ (Scale plan+)",
       steps: [
         "Click AI Tool Testing. Click New test.",
-        "Enter tool name, URL, type (chatbot / image-gen / video-gen / agent / rag / code-assistant / voice / other).",
+        "Enter tool name, URL, type (chatbot / image-gen / video-gen / agent / rag / code-assistant / voice / ecommerce / other).",
         "Click Run test suite. Wait 2-5 min.",
         "Review: overall score, grade, per-category, per-test-case, strengths/weaknesses, recommendations, benchmark.",
         "Save. Export PDF for stakeholders.",

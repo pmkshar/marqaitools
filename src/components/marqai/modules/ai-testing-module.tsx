@@ -17,13 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogClose,
-} from "@/components/ui/dialog";
+import { ShoppingCart } from "lucide-react";
 import { ScoreRing } from "../score-ring";
 import { LoadingState, EmptyState } from "../loading-states";
 import { toast } from "sonner";
@@ -81,6 +75,7 @@ const toolTypes = [
   { id: "rag", label: "RAG system", icon: Code2 },
   { id: "code-assistant", label: "Code assistant", icon: Code2 },
   { id: "voice", label: "Voice / TTS / ASR", icon: Zap },
+  { id: "ecommerce", label: "AI e-commerce tool", icon: ShoppingCart },
   { id: "other", label: "Other AI tool", icon: FlaskConical },
 ];
 
@@ -104,6 +99,9 @@ const sampleTools = [
   { name: "Runway Gen-3", url: "https://runwayml.com", type: "video-gen" as const },
   { name: "GitHub Copilot", url: "https://github.com/features/copilot", type: "code-assistant" as const },
   { name: "Cursor", url: "https://cursor.sh", type: "code-assistant" as const },
+  { name: "Shopify Magic", url: "https://www.shopify.com/magic", type: "ecommerce" as const },
+  { name: "Amazon Rufus", url: "https://www.amazon.com/rufus", type: "ecommerce" as const },
+  { name: "Klarna Shopping", url: "https://www.klarna.com", type: "ecommerce" as const },
 ];
 
 export function AiTestingModule() {
@@ -116,10 +114,17 @@ export function AiTestingModule() {
   const [focusAreas, setFocusAreas] = useState("All categories");
   const [customTestCases, setCustomTestCases] = useState("");
   const [loading, setLoading] = useState(false);
-  const [preview, setPreview] = useState<AiToolTestReport | null>(null);
+  const [activeReport, setActiveReport] = useState<AiToolTestReport | null>(null);
 
-  async function runTest() {
-    if (!toolName.trim() || !toolUrl.trim()) {
+  async function runTest(overrides?: {
+    toolName?: string;
+    toolUrl?: string;
+    toolType?: AiToolTestReport["toolType"];
+  }) {
+    const tn = overrides?.toolName ?? toolName;
+    const tu = overrides?.toolUrl ?? toolUrl;
+    const tt = overrides?.toolType ?? toolType;
+    if (!tn.trim() || !tu.trim()) {
       toast.error("Tool name and URL are required");
       return;
     }
@@ -129,24 +134,40 @@ export function AiTestingModule() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          toolName: toolName.trim(),
-          toolUrl: toolUrl.trim(),
-          toolType,
+          toolName: tn.trim(),
+          toolUrl: tu.trim(),
+          toolType: tt,
           focusAreas,
           customTestCases,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      const r: AiToolTestReport = normalizeReport(data.report, toolUrl.trim());
+      const r: AiToolTestReport = normalizeReport(data.report, tu.trim());
       addReport(r);
-      setPreview(r);
+      setActiveReport(r);
       toast.success(`Test complete — grade ${r.grade}`);
+      setTimeout(() => {
+        document
+          .getElementById("active-report-panel")
+          ?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 120);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Test failed");
     } finally {
       setLoading(false);
     }
+  }
+
+  async function retestFromReport(r: AiToolTestReport) {
+    setToolName(r.toolName);
+    setToolUrl(r.toolUrl);
+    setToolType(r.toolType);
+    await runTest({
+      toolName: r.toolName,
+      toolUrl: r.toolUrl,
+      toolType: r.toolType,
+    });
   }
 
   return (
@@ -199,9 +220,10 @@ export function AiTestingModule() {
             setCustomTestCases={setCustomTestCases}
             loading={loading}
             setLoading={setLoading}
-            preview={preview}
-            setPreview={setPreview}
+            activeReport={activeReport}
+            setActiveReport={setActiveReport}
             runTest={runTest}
+            retestFromReport={retestFromReport}
           />
         </TabsContent>
 
@@ -213,9 +235,6 @@ export function AiTestingModule() {
           <ModuleReportsSection />
         </TabsContent>
       </Tabs>
-
-      {/* Preview modal — shared across tabs */}
-      {preview && <ReportPreview report={preview} onClose={() => setPreview(null)} />}
     </div>
   );
 }
@@ -238,16 +257,22 @@ interface TestRunnerTabProps {
   setCustomTestCases: (v: string) => void;
   loading: boolean;
   setLoading: (v: boolean) => void;
-  preview: AiToolTestReport | null;
-  setPreview: (r: AiToolTestReport | null) => void;
-  runTest: () => Promise<void>;
+  activeReport: AiToolTestReport | null;
+  setActiveReport: (r: AiToolTestReport | null) => void;
+  runTest: (overrides?: {
+    toolName?: string;
+    toolUrl?: string;
+    toolType?: AiToolTestReport["toolType"];
+  }) => Promise<void>;
+  retestFromReport: (r: AiToolTestReport) => Promise<void>;
 }
 
 function TestRunnerTab(props: TestRunnerTabProps) {
   const {
     reports, toolName, setToolName, toolUrl, setToolUrl,
     toolType, setToolType, focusAreas, setFocusAreas,
-    customTestCases, setCustomTestCases, loading, runTest, setPreview,
+    customTestCases, setCustomTestCases, loading, runTest,
+    activeReport, setActiveReport, retestFromReport,
   } = props;
 
   return (
@@ -319,7 +344,7 @@ function TestRunnerTab(props: TestRunnerTabProps) {
               />
             </div>
 
-            <Button onClick={runTest} disabled={loading} size="lg" className="w-full">
+            <Button onClick={() => runTest()} disabled={loading} size="lg" className="w-full">
               {loading ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <FlaskConical className="h-4 w-4 mr-1.5" />}
               {loading ? "Running test suite..." : "Run test suite"}
             </Button>
@@ -371,6 +396,18 @@ function TestRunnerTab(props: TestRunnerTabProps) {
         </Card>
       )}
 
+      {/* Inline detailed report panel (replaces the old popup modal) */}
+      {!loading && activeReport && (
+        <div id="active-report-panel" className="scroll-mt-20">
+          <InlineReport
+            report={activeReport}
+            onClose={() => setActiveReport(null)}
+            onRetest={() => retestFromReport(activeReport)}
+            retesting={loading}
+          />
+        </div>
+      )}
+
       {/* History */}
       {!loading && reports.length > 0 && (
         <Card>
@@ -378,29 +415,60 @@ function TestRunnerTab(props: TestRunnerTabProps) {
             <CardTitle className="text-base flex items-center gap-2">
               <History className="h-4 w-4" /> Test reports ({reports.length})
             </CardTitle>
+            <CardDescription className="text-xs">
+              Click any past report to expand it inline above. Use “Re-test” to re-run the same tool anytime in the future.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
-            {reports.map((r) => (
-              <button
-                key={r.id}
-                onClick={() => setPreview(r)}
-                className="w-full flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-muted/40 transition-colors text-left"
-              >
-                <ScoreRing score={r.overallScore} size={48} label={r.grade} showValue />
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium truncate">{r.toolName}</div>
-                  <div className="text-xs text-muted-foreground truncate">
-                    {r.toolUrl} · {r.toolType} · {r.testCases.length} test cases
+            {reports.map((r) => {
+              const isActive = activeReport?.id === r.id;
+              return (
+                <div
+                  key={r.id}
+                  className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors text-left ${
+                    isActive ? "border-primary bg-primary/5" : "border-border hover:bg-muted/40"
+                  }`}
+                >
+                  <button
+                    onClick={() => setActiveReport(isActive ? null : r)}
+                    className="flex items-center gap-3 flex-1 min-w-0 text-left"
+                  >
+                    <ScoreRing score={r.overallScore} size={48} label={r.grade} showValue />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium truncate">{r.toolName}</div>
+                      <div className="text-xs text-muted-foreground truncate">
+                        {r.toolUrl} · {r.toolType} · {r.testCases.length} test cases
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="text-[11px] text-muted-foreground">{formatDateTime(r.testedAt)}</div>
+                      <Badge variant="outline" className="text-[10px] mt-0.5">
+                        {r.testCases.filter((t) => t.status === "pass").length}/{r.testCases.length} pass
+                      </Badge>
+                    </div>
+                  </button>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Button
+                      size="sm"
+                      variant={isActive ? "default" : "outline"}
+                      className="h-7 px-2 text-[11px]"
+                      onClick={() => setActiveReport(isActive ? null : r)}
+                    >
+                      {isActive ? "Showing" : "View"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 px-2 text-[11px]"
+                      onClick={() => retestFromReport(r)}
+                      disabled={loading}
+                    >
+                      <RefreshCw className="h-3 w-3 mr-1" /> Re-test
+                    </Button>
                   </div>
                 </div>
-                <div className="text-right shrink-0">
-                  <div className="text-[11px] text-muted-foreground">{formatDateTime(r.testedAt)}</div>
-                  <Badge variant="outline" className="text-[10px] mt-0.5">
-                    {r.testCases.filter((t) => t.status === "pass").length}/{r.testCases.length} pass
-                  </Badge>
-                </div>
-              </button>
-            ))}
+              );
+            })}
           </CardContent>
         </Card>
       )}
@@ -746,7 +814,17 @@ function ModuleReportsSection() {
   );
 }
 
-function ReportPreview({ report, onClose }: { report: AiToolTestReport; onClose: () => void }) {
+function InlineReport({
+  report,
+  onClose,
+  onRetest,
+  retesting,
+}: {
+  report: AiToolTestReport;
+  onClose: () => void;
+  onRetest: () => void;
+  retesting: boolean;
+}) {
   const radarData = report.categories.map((c) => ({
     category: c.category,
     score: c.score,
@@ -762,251 +840,270 @@ function ReportPreview({ report, onClose }: { report: AiToolTestReport; onClose:
   const failCount = report.testCases.filter((t) => t.status === "fail").length;
 
   return (
-    <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-5xl max-h-[92vh] overflow-y-auto scroll-thin">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <FlaskConical className="h-4 w-4" /> {report.toolName} — Test Report
-          </DialogTitle>
-        </DialogHeader>
-
-        <div className="space-y-4">
-          {/* Header */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
-            <Card className="md:col-span-2">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <Badge variant="outline" className="text-[10px] capitalize">{report.toolType.replace("-", " ")}</Badge>
-                  <Badge variant="outline" className="text-[10px]">{formatDateTime(report.testedAt)}</Badge>
-                </div>
-                <div className="text-sm text-muted-foreground mb-2">{report.toolUrl}</div>
-                <p className="text-sm">{report.summary}</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4 flex flex-col items-center justify-center">
-                <ScoreRing score={report.overallScore} size={120} label="Overall" />
-                <div className={`mt-2 text-2xl font-bold ${scoreColor(report.overallScore)}`}>
-                  Grade {report.grade}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Test case summary */}
-          <div className="grid grid-cols-3 gap-3">
-            <Card>
-              <CardContent className="p-4 flex items-center gap-3">
-                <CheckCircle2 className="h-8 w-8 text-emerald-500" />
-                <div>
-                  <div className="text-2xl font-bold">{passCount}</div>
-                  <div className="text-xs text-muted-foreground uppercase">Passed</div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4 flex items-center gap-3">
-                <AlertCircle className="h-8 w-8 text-amber-500" />
-                <div>
-                  <div className="text-2xl font-bold">{partialCount}</div>
-                  <div className="text-xs text-muted-foreground uppercase">Partial</div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4 flex items-center gap-3">
-                <XCircle className="h-8 w-8 text-rose-500" />
-                <div>
-                  <div className="text-2xl font-bold">{failCount}</div>
-                  <div className="text-xs text-muted-foreground uppercase">Failed</div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Category scores + radar */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">Category scores</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {report.categories.map((c, i) => (
-                  <div key={i}>
-                    <div className="flex items-center justify-between text-xs mb-1">
-                      <span className="font-medium">{c.category}</span>
-                      <span className={scoreColor(c.score)}>{c.score}/{c.maxScore}</span>
-                    </div>
-                    <Progress value={c.score} className="h-1.5" />
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">Score profile</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={260}>
-                  <RadarChart data={radarData}>
-                    <PolarGrid stroke="currentColor" strokeOpacity={0.15} />
-                    <PolarAngleAxis dataKey="category" tick={{ fontSize: 10, fill: "currentColor", fillOpacity: 0.7 }} />
-                    <PolarRadiusAxis domain={[0, 100]} tick={{ fontSize: 9, fill: "currentColor", fillOpacity: 0.5 }} />
-                    <Radar dataKey="score" stroke="#0d9488" fill="#0d9488" fillOpacity={0.4} strokeWidth={2} />
-                  </RadarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Benchmark comparison */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">Benchmark comparison</CardTitle>
-              <CardDescription>This tool vs. industry average</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={benchmarkData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="currentColor" strokeOpacity={0.1} />
-                  <XAxis dataKey="metric" stroke="currentColor" strokeOpacity={0.4} fontSize={10} tickLine={false} axisLine={false} />
-                  <YAxis stroke="currentColor" strokeOpacity={0.4} fontSize={11} tickLine={false} axisLine={false} />
-                  <Tooltip
-                    contentStyle={{ background: "var(--background)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }}
-                  />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
-                  <Bar dataKey="thisTool" name={report.toolName} fill="#0d9488" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="industryAvg" name="Industry avg" fill="#94a3b8" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-
-          {/* Test cases */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">Test case results</CardTitle>
-              <CardDescription>
-                {report.testCases.length} test cases executed
-                {report.scenariosCovered && report.scenariosCovered.length > 0 && (
-                  <> · {report.scenariosCovered.length} AI scenarios covered</>
-                )}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-2 max-h-96 overflow-y-auto scroll-thin">
-              {report.testCases.map((tc) => {
-                const Icon = tc.status === "pass" ? CheckCircle2 : tc.status === "partial" ? AlertCircle : XCircle;
-                const color = tc.status === "pass" ? "text-emerald-500" : tc.status === "partial" ? "text-amber-500" : "text-rose-500";
-                return (
-                  <div key={tc.id} className="p-3 rounded-lg border border-border">
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <Icon className={`h-4 w-4 shrink-0 ${color}`} />
-                        <span className="text-sm font-medium truncate">{tc.name}</span>
-                        {tc.scenario && (
-                          <Badge variant="outline" className="text-[10px] bg-violet-50 text-violet-700 shrink-0">
-                            {tc.scenario}
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <Badge variant="outline" className="text-[10px]">{tc.latencyMs}ms</Badge>
-                        <Badge
-                          variant={tc.status === "pass" ? "default" : tc.status === "partial" ? "secondary" : "destructive"}
-                          className="text-[10px] capitalize"
-                        >
-                          {tc.status}
-                        </Badge>
-                      </div>
-                    </div>
-                    <div className="text-xs text-muted-foreground ml-6 space-y-0.5">
-                      <div><strong className="text-foreground">Prompt:</strong> {tc.prompt}</div>
-                      <div><strong className="text-foreground">Expected:</strong> {tc.expectedBehavior}</div>
-                      <div><strong className="text-foreground">Actual:</strong> {tc.actualBehavior}</div>
-                      {tc.notes && <div className="italic">{tc.notes}</div>}
-                    </div>
-                  </div>
-                );
-              })}
-            </CardContent>
-          </Card>
-
-          {/* Strengths & weaknesses */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-500" /> Strengths
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ul className="space-y-1.5 text-sm">
-                  {report.strengths.map((s, i) => (
-                    <li key={i} className="flex items-start gap-2">
-                      <span className="text-emerald-500 mt-0.5">+</span>
-                      <span>{s}</span>
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <XCircle className="h-4 w-4 text-rose-500" /> Weaknesses
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ul className="space-y-1.5 text-sm">
-                  {report.weaknesses.map((s, i) => (
-                    <li key={i} className="flex items-start gap-2">
-                      <span className="text-rose-500 mt-0.5">−</span>
-                      <span>{s}</span>
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Recommendations */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Lightbulb className="h-4 w-4 text-amber-500" /> Recommendations
+    <Card className="border-primary/40 shadow-sm">
+      <CardHeader className="pb-3 border-b border-border bg-muted/30">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div className="flex items-start gap-3 min-w-0">
+            <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+              <FlaskConical className="h-4 w-4 text-primary" />
+            </div>
+            <div className="min-w-0">
+              <CardTitle className="text-base flex items-center gap-2 flex-wrap">
+                {report.toolName}
+                <Badge variant="outline" className="text-[10px] capitalize">{report.toolType.replace("-", " ")}</Badge>
+                <Badge variant="outline" className="text-[10px]">Grade {report.grade}</Badge>
               </CardTitle>
+              <CardDescription className="text-xs mt-0.5 truncate">
+                {report.toolUrl} · Tested {formatDateTime(report.testedAt)}
+              </CardDescription>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button variant="default" size="sm" onClick={onRetest} disabled={retesting}>
+              {retesting ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5 mr-1.5" />}
+              Re-test this tool
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => window.print()}>
+              <Download className="h-3.5 w-3.5 mr-1.5" /> Export
+            </Button>
+            <Button variant="ghost" size="sm" onClick={onClose}>
+              Close
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="p-4 md:p-6 space-y-5">
+        {/* Top summary row */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+          <Card className="md:col-span-2">
+            <CardContent className="p-4">
+              <div className="text-xs uppercase tracking-wide text-muted-foreground mb-1">Summary</div>
+              <p className="text-sm">{report.summary}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4 flex flex-col items-center justify-center">
+              <ScoreRing score={report.overallScore} size={120} label="Overall" />
+              <div className={`mt-2 text-2xl font-bold ${scoreColor(report.overallScore)}`}>
+                Grade {report.grade}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Test case summary */}
+        <div className="grid grid-cols-3 gap-3">
+          <Card>
+            <CardContent className="p-4 flex items-center gap-3">
+              <CheckCircle2 className="h-8 w-8 text-emerald-500" />
+              <div>
+                <div className="text-2xl font-bold">{passCount}</div>
+                <div className="text-xs text-muted-foreground uppercase">Passed</div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4 flex items-center gap-3">
+              <AlertCircle className="h-8 w-8 text-amber-500" />
+              <div>
+                <div className="text-2xl font-bold">{partialCount}</div>
+                <div className="text-xs text-muted-foreground uppercase">Partial</div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4 flex items-center gap-3">
+              <XCircle className="h-8 w-8 text-rose-500" />
+              <div>
+                <div className="text-2xl font-bold">{failCount}</div>
+                <div className="text-xs text-muted-foreground uppercase">Failed</div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Category scores + radar */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Category scores</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
-              {report.recommendations.map((r, i) => (
-                <div key={i} className="flex items-start gap-3 p-3 rounded-lg border border-border">
-                  <Badge
-                    variant={r.priority === "high" ? "destructive" : r.priority === "medium" ? "default" : "secondary"}
-                    className="text-[10px] mt-0.5"
-                  >
-                    {r.priority}
-                  </Badge>
-                  <div>
-                    <div className="text-sm font-medium">{r.title}</div>
-                    <div className="text-xs text-muted-foreground">{r.description}</div>
+            <CardContent className="space-y-3">
+              {report.categories.map((c, i) => (
+                <div key={i}>
+                  <div className="flex items-center justify-between text-xs mb-1">
+                    <span className="font-medium">{c.category}</span>
+                    <span className={scoreColor(c.score)}>{c.score}/{c.maxScore}</span>
                   </div>
+                  <Progress value={c.score} className="h-1.5" />
                 </div>
               ))}
             </CardContent>
           </Card>
 
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" size="sm" onClick={() => window.print()}>
-              <Download className="h-3.5 w-3.5 mr-1.5" /> Export
-            </Button>
-            <DialogClose asChild>
-              <Button size="sm">Close</Button>
-            </DialogClose>
-          </div>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Score profile</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={260}>
+                <RadarChart data={radarData}>
+                  <PolarGrid stroke="currentColor" strokeOpacity={0.15} />
+                  <PolarAngleAxis dataKey="category" tick={{ fontSize: 10, fill: "currentColor", fillOpacity: 0.7 }} />
+                  <PolarRadiusAxis domain={[0, 100]} tick={{ fontSize: 9, fill: "currentColor", fillOpacity: 0.5 }} />
+                  <Radar dataKey="score" stroke="#0d9488" fill="#0d9488" fillOpacity={0.4} strokeWidth={2} />
+                </RadarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
         </div>
-      </DialogContent>
-    </Dialog>
+
+        {/* Benchmark comparison */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Benchmark comparison</CardTitle>
+            <CardDescription>This tool vs. industry average</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={benchmarkData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="currentColor" strokeOpacity={0.1} />
+                <XAxis dataKey="metric" stroke="currentColor" strokeOpacity={0.4} fontSize={10} tickLine={false} axisLine={false} />
+                <YAxis stroke="currentColor" strokeOpacity={0.4} fontSize={11} tickLine={false} axisLine={false} />
+                <Tooltip
+                  contentStyle={{ background: "var(--background)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }}
+                />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <Bar dataKey="thisTool" name={report.toolName} fill="#0d9488" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="industryAvg" name="Industry avg" fill="#94a3b8" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        {/* Test cases */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Test case results</CardTitle>
+            <CardDescription>
+              {report.testCases.length} test cases executed
+              {report.scenariosCovered && report.scenariosCovered.length > 0 && (
+                <> · {report.scenariosCovered.length} AI scenarios covered</>
+              )}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2 max-h-[480px] overflow-y-auto scroll-thin">
+            {report.testCases.map((tc) => {
+              const Icon = tc.status === "pass" ? CheckCircle2 : tc.status === "partial" ? AlertCircle : XCircle;
+              const color = tc.status === "pass" ? "text-emerald-500" : tc.status === "partial" ? "text-amber-500" : "text-rose-500";
+              return (
+                <div key={tc.id} className="p-3 rounded-lg border border-border">
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Icon className={`h-4 w-4 shrink-0 ${color}`} />
+                      <span className="text-sm font-medium truncate">{tc.name}</span>
+                      {tc.scenario && (
+                        <Badge variant="outline" className="text-[10px] bg-violet-50 text-violet-700 shrink-0">
+                          {tc.scenario}
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Badge variant="outline" className="text-[10px]">{tc.latencyMs}ms</Badge>
+                      <Badge
+                        variant={tc.status === "pass" ? "default" : tc.status === "partial" ? "secondary" : "destructive"}
+                        className="text-[10px] capitalize"
+                      >
+                        {tc.status}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div className="text-xs text-muted-foreground ml-6 space-y-0.5">
+                    <div><strong className="text-foreground">Prompt:</strong> {tc.prompt}</div>
+                    <div><strong className="text-foreground">Expected:</strong> {tc.expectedBehavior}</div>
+                    <div><strong className="text-foreground">Actual:</strong> {tc.actualBehavior}</div>
+                    {tc.notes && <div className="italic">{tc.notes}</div>}
+                  </div>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+
+        {/* Strengths & weaknesses */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-emerald-500" /> Strengths
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ul className="space-y-1.5 text-sm">
+                {report.strengths.map((s, i) => (
+                  <li key={i} className="flex items-start gap-2">
+                    <span className="text-emerald-500 mt-0.5">+</span>
+                    <span>{s}</span>
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <XCircle className="h-4 w-4 text-rose-500" /> Weaknesses
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ul className="space-y-1.5 text-sm">
+                {report.weaknesses.map((s, i) => (
+                  <li key={i} className="flex items-start gap-2">
+                    <span className="text-rose-500 mt-0.5">−</span>
+                    <span>{s}</span>
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Recommendations */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Lightbulb className="h-4 w-4 text-amber-500" /> Recommendations
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {report.recommendations.map((r, i) => (
+              <div key={i} className="flex items-start gap-3 p-3 rounded-lg border border-border">
+                <Badge
+                  variant={r.priority === "high" ? "destructive" : r.priority === "medium" ? "default" : "secondary"}
+                  className="text-[10px] mt-0.5"
+                >
+                  {r.priority}
+                </Badge>
+                <div>
+                  <div className="text-sm font-medium">{r.title}</div>
+                  <div className="text-xs text-muted-foreground">{r.description}</div>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
+        <div className="flex items-center justify-between pt-2 border-t border-border">
+          <p className="text-xs text-muted-foreground">
+            Report persisted in your session history. Use “Re-test this tool” to re-run this exact configuration anytime.
+          </p>
+          <Button variant="ghost" size="sm" onClick={onClose}>
+            Close report
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

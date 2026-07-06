@@ -16,6 +16,7 @@ interface Body {
     | "rag"
     | "code-assistant"
     | "voice"
+    | "ecommerce"
     | "other";
   customTestCases?: string;
   focusAreas?: string;
@@ -55,7 +56,7 @@ export async function POST(req: NextRequest) {
 }
 
 function systemPrompt(): string {
-  return `You are Marqai's AI QA lead. You design and run objective test cases against AI tools (chatbots, image generators, video generators, agents, RAG systems, code assistants, voice tools). For each tool you produce a detailed report card with category scores, individual test case results, strengths, weaknesses, and prioritized recommendations. Your test design follows Marqai's comprehensive testing taxonomy covering Testing Strategies, Testing Methodologies, and AI-Specific Test Scenarios. Always return STRICT JSON ONLY — no prose, no code fences.`;
+  return `You are Marqai's AI QA lead. You design and run objective test cases against AI tools (chatbots, image generators, video generators, agents, RAG systems, code assistants, voice tools, and AI-powered e-commerce tools such as product recommendation engines, semantic search, shopping copilots, and personalization systems). For each tool you produce a detailed report card with category scores, individual test case results, strengths, weaknesses, and prioritized recommendations. Your test design follows Marqai's comprehensive testing taxonomy covering Testing Strategies, Testing Methodologies, and AI-Specific Test Scenarios. Always return STRICT JSON ONLY — no prose, no code fences.`;
 }
 
 function buildUserPrompt(b: Body): string {
@@ -104,7 +105,7 @@ Return JSON with EXACTLY this shape:
 }
 
 Requirements:
-- 5-7 categories relevant to the tool type (e.g. Accuracy, Latency, Safety, Reasoning, Cost, UX, Context handling, Hallucination rate, Output diversity).
+- 5-7 categories relevant to the tool type (e.g. Accuracy, Latency, Safety, Reasoning, Cost, UX, Context handling, Hallucination rate, Output diversity; for e-commerce tools include Recommendation relevance, Search relevance, Personalization, Catalog coverage, Latency, Fallback robustness).
 - 8-12 testCases with realistic prompts and outcomes. Each test case MUST map to one of the AI-specific scenarios above (set "scenario" to the scenario name).
 - 4-6 strengths, 4-6 weaknesses.
 - 4-6 recommendations.

@@ -113,7 +113,16 @@ email=user@example.com&password=...&csrfToken=...`}</code></pre>
             <div className="text-xs text-muted-foreground mt-1">
               Run the AI tool testing suite. Permission: ai-testing:execute+. Cost: 50 credits.
               The test prompt now follows Marqai's 33-item testing taxonomy (14 strategies + 10 methodologies + 9 AI scenarios)
-              — each test case is tagged with the AI scenario it maps to.
+              — each test case is tagged with the AI scenario it maps to. Tool type can be any of:
+              <code className="bg-muted px-1 mx-1 rounded">chatbot</code>
+              <code className="bg-muted px-1 mx-1 rounded">image-gen</code>
+              <code className="bg-muted px-1 mx-1 rounded">video-gen</code>
+              <code className="bg-muted px-1 mx-1 rounded">agent</code>
+              <code className="bg-muted px-1 mx-1 rounded">rag</code>
+              <code className="bg-muted px-1 mx-1 rounded">code-assistant</code>
+              <code className="bg-muted px-1 mx-1 rounded">voice</code>
+              <code className="bg-muted px-1 mx-1 rounded">ecommerce</code>
+              <code className="bg-muted px-1 mx-1 rounded">other</code>.
             </div>
             <pre className="bg-muted p-2 rounded mt-2 text-xs overflow-x-auto"><code>{`{
   "toolName": "ChatGPT 4o",

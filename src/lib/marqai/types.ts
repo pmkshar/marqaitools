@@ -326,7 +326,16 @@ export interface AiToolTestReport {
   id: string;
   toolName: string;
   toolUrl: string;
-  toolType: "chatbot" | "image-gen" | "video-gen" | "agent" | "rag" | "code-assistant" | "voice" | "other";
+  toolType:
+    | "chatbot"
+    | "image-gen"
+    | "video-gen"
+    | "agent"
+    | "rag"
+    | "code-assistant"
+    | "voice"
+    | "ecommerce"
+    | "other";
   testedAt: string;
   overallScore: number;
   grade: "A+" | "A" | "B" | "C" | "D" | "F";

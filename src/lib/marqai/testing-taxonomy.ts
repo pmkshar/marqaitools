@@ -745,7 +745,16 @@ export function getAllTestingItems(): TestingItem[] {
  * image-gens get recommendation-relevance + duplicate-detection.
  */
 export function getRelevantScenarios(
-  toolType: "chatbot" | "image-gen" | "video-gen" | "agent" | "rag" | "code-assistant" | "voice" | "other",
+  toolType:
+    | "chatbot"
+    | "image-gen"
+    | "video-gen"
+    | "agent"
+    | "rag"
+    | "code-assistant"
+    | "voice"
+    | "ecommerce"
+    | "other",
 ): TestingItem[] {
   const all = AI_TEST_SCENARIOS.items;
   switch (toolType) {
@@ -773,6 +782,20 @@ export function getRelevantScenarios(
     case "voice":
       return all.filter((i) =>
         ["chatbot-correctness", "recommendation-latency", "ai-fallback"].includes(i.id),
+      );
+    case "ecommerce":
+      // AI-based e-commerce tools: product recommendations, semantic search,
+      // personalization, duplicate detection, feedback learning, latency, AI fallback.
+      return all.filter((i) =>
+        [
+          "recommendation-relevance",
+          "semantic-search",
+          "personalization",
+          "duplicate-detection",
+          "feedback-learning",
+          "recommendation-latency",
+          "ai-fallback",
+        ].includes(i.id),
       );
     default:
       return all;
