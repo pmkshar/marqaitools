@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useMarqai } from "@/lib/marqai/store";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -132,6 +132,14 @@ const MESSAGE_STATUS_COLORS: Record<WhatsAppMessageStatus, string> = {
 
 export function WhatsAppModule() {
   const [tab, setTab] = useState("campaigns");
+  const [mode, setMode] = useState<"live" | "demo" | "checking">("checking");
+
+  useEffect(() => {
+    fetch("/api/marqai/whatsapp/health")
+      .then((r) => r.json())
+      .then((d) => setMode(d.configured ? "live" : "demo"))
+      .catch(() => setMode("demo"));
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -140,9 +148,20 @@ export function WhatsAppModule() {
         <div className="absolute inset-0 bg-gradient-to-br from-emerald-500 via-green-600 to-teal-700 opacity-95" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.18),transparent_60%)]" />
         <CardContent className="relative p-6 md:p-8 text-white">
-          <Badge className="bg-white/20 text-white border-0 mb-3 backdrop-blur-sm">
-            <MessageCircle className="h-3 w-3 mr-1" /> WhatsApp Business Cloud API
-          </Badge>
+          <div className="flex items-center gap-2 mb-3 flex-wrap">
+            <Badge className="bg-white/20 text-white border-0 backdrop-blur-sm">
+              <MessageCircle className="h-3 w-3 mr-1" /> WhatsApp Business Cloud API
+            </Badge>
+            {mode === "live" && (
+              <Badge className="bg-emerald-300 text-emerald-900 border-0"><CheckCircle2 className="h-3 w-3 mr-1" /> LIVE MODE</Badge>
+            )}
+            {mode === "demo" && (
+              <Badge className="bg-amber-300 text-amber-900 border-0"><AlertCircle className="h-3 w-3 mr-1" /> DEMO MODE — add Meta credentials in API tab</Badge>
+            )}
+            {mode === "checking" && (
+              <Badge className="bg-white/20 text-white border-0"><Loader2 className="h-3 w-3 mr-1 animate-spin" /> Checking…</Badge>
+            )}
+          </div>
           <h2 className="text-2xl md:text-3xl font-bold tracking-tight mb-2">
             Send marketing broadcasts to thousands at once.
           </h2>
@@ -1258,12 +1277,62 @@ function AnalyticsTab() {
 // ============================================================
 // TAB: API / INTEGRATION
 // ============================================================
+interface HealthStatus {
+  configured: boolean;
+  mode: "live" | "demo";
+  provider: string;
+  hasToken: boolean;
+  hasPhoneNumberId: boolean;
+  hasBusinessAccountId: boolean;
+  hasAppSecret: boolean;
+  hasApiKey: boolean;
+  missing: string[];
+}
+
 function ApiTab() {
   const connection = useMarqai((s) => s.whatsappConnection);
   const updateConnection = useMarqai((s) => s.updateWhatsAppConnection);
   const [connecting, setConnecting] = useState(false);
   const [showConnect, setShowConnect] = useState(false);
-  const [, setForceRender] = useState(0);
+  const [health, setHealth] = useState<HealthStatus | null>(null);
+  const [healthLoading, setHealthLoading] = useState(false);
+  const [showCurl, setShowCurl] = useState<string | null>("external");
+  const [webhookEvents, setWebhookEvents] = useState<Array<{ receivedAt: string; events: any[] }>>([]);
+  const [eventsLoading, setEventsLoading] = useState(false);
+
+  const productionUrl = typeof window !== "undefined" ? window.location.origin : "https://marqaitools.vercel.app";
+  const webhookUrl = `${productionUrl}/api/marqai/whatsapp/webhook`;
+  const externalUrl = `${productionUrl}/api/marqai/whatsapp/external/send`;
+
+  async function refreshHealth() {
+    setHealthLoading(true);
+    try {
+      const res = await fetch("/api/marqai/whatsapp/health");
+      const data = await res.json();
+      setHealth(data);
+    } catch {
+      setHealth(null);
+    } finally {
+      setHealthLoading(false);
+    }
+  }
+
+  async function refreshWebhookEvents() {
+    setEventsLoading(true);
+    try {
+      const res = await fetch("/api/marqai/whatsapp/webhook-events");
+      const data = await res.json();
+      setWebhookEvents(data.events ?? []);
+    } catch {
+      setWebhookEvents([]);
+    } finally {
+      setEventsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    refreshHealth();
+  }, []);
 
   async function testConnection() {
     setConnecting(true);
@@ -1271,8 +1340,17 @@ function ApiTab() {
       const res = await fetch("/api/marqai/whatsapp/test-connection");
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      updateConnection({ connected: data.connected ?? false, qualityRating: data.qualityRating });
-      toast.success(data.connected ? "Connection healthy" : "Connection issue detected");
+      updateConnection({
+        connected: data.connected ?? false,
+        qualityRating: data.qualityRating,
+        displayName: data.displayName,
+        phoneNumber: data.phoneNumber,
+        phoneNumberId: data.phoneNumberId,
+        messagingTier: data.messagingTier,
+        provider: "meta-cloud-api",
+      });
+      toast.success(data.connected ? `Connection healthy (${data.mode} mode)` : "Connection issue detected");
+      refreshHealth();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Test failed");
     } finally {
@@ -1280,11 +1358,126 @@ function ApiTab() {
     }
   }
 
-  const apiKey = typeof window !== "undefined" ? (sessionStorage.getItem("whatsapp_api_key") ?? "") : "";
-  const webhookUrl = connection.webhookUrl ?? "https://marqaitools.vercel.app/api/marqai/whatsapp/webhook";
+  const envVars = [
+    { name: "WHATSAPP_ACCESS_TOKEN", desc: "Meta Cloud API permanent access token", required: true, present: health?.hasToken },
+    { name: "WHATSAPP_PHONE_NUMBER_ID", desc: "Phone number ID from WhatsApp → API Setup page", required: true, present: health?.hasPhoneNumberId },
+    { name: "WHATSAPP_APP_SECRET", desc: "App secret for webhook signature verification", required: false, present: health?.hasAppSecret },
+    { name: "WHATSAPP_API_KEY", desc: "API key for external integrations (set your own strong random string)", required: false, present: health?.hasApiKey },
+    { name: "WHATSAPP_BUSINESS_ACCOUNT_ID", desc: "WhatsApp Business Account ID (for template management)", required: false, present: health?.hasBusinessAccountId },
+    { name: "WHATSAPP_WEBHOOK_VERIFY_TOKEN", desc: "Verify token for Meta webhook subscription (default: marqai_verify_2026)", required: false, present: null },
+  ];
+
+  const curlExternal = `curl -X POST ${externalUrl} \\
+  -H "Authorization: Bearer YOUR_WHATSAPP_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "to": "14155551234",
+    "templateName": "order_confirmation",
+    "language": "en_US",
+    "bodyParams": ["Alice", "#ORD-1234"]
+  }'`;
+
+  const curlBroadcast = `curl -X POST ${productionUrl}/api/marqai/whatsapp/send-broadcast \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "templateId": "wa-tpl-1",
+    "contactIds": ["wa-c-1", "wa-c-2", "wa-c-3"],
+    "variableOverrides": {
+      "wa-c-1": { "{{1}}": "Priya", "{{2}}": "40" }
+    }
+  }'`;
+
+  const nodeExample = `import fetch from "node-fetch";
+
+const res = await fetch("${externalUrl}", {
+  method: "POST",
+  headers: {
+    "Authorization": \`Bearer \${process.env.WHATSAPP_API_KEY}\`,
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    to: "+14155551234",
+    templateName: "order_confirmation",
+    language: "en_US",
+    bodyParams: [customerName, orderId],
+    campaignId: "checkout-flow",
+    externalId: order.id,
+  }),
+});
+const { messageId, status } = await res.json();
+console.log("WhatsApp queued:", messageId, status);`;
 
   return (
     <div className="space-y-4">
+      {/* LIVE MODE STATUS BANNER */}
+      <Card className={health?.configured ? "border-emerald-200 bg-emerald-50/30" : "border-amber-200 bg-amber-50/30"}>
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <CardTitle className="text-base flex items-center gap-2">
+              {health?.configured ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <AlertCircle className="h-4 w-4 text-amber-600" />}
+              WhatsApp mode: {health?.mode === "live" ? "LIVE" : health?.mode === "demo" ? "DEMO" : "Checking…"}
+            </CardTitle>
+            <Button size="sm" variant="outline" onClick={refreshHealth} disabled={healthLoading}>
+              {healthLoading ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5 mr-1.5" />} Refresh
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {health?.configured ? (
+            <div className="text-sm text-emerald-800 space-y-1">
+              <p><strong>Live mode active.</strong> Messages will be sent through the Meta Cloud API to real WhatsApp users.</p>
+              <p className="text-xs">Provider: {health.provider}. Configure your webhook in Meta Business Manager to receive delivery / read callbacks.</p>
+            </div>
+          ) : health ? (
+            <div className="text-sm text-amber-800 space-y-2">
+              <p><strong>Demo mode.</strong> All sends are simulated — no real WhatsApp messages will be delivered.</p>
+              <p className="text-xs">To enable live sending, add the environment variables below in <strong>Vercel → Project → Settings → Environment Variables</strong>, then redeploy.</p>
+              {health.missing.length > 0 && (
+                <div className="text-xs">Missing: {health.missing.map((m) => <code key={m} className="bg-amber-100 px-1.5 py-0.5 rounded mr-1 font-mono text-[11px]">{m}</code>)}</div>
+              )}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">Checking configuration…</p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ENV VAR SETUP GUIDE */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2"><Plug className="h-4 w-4" /> Environment variables (set in Vercel)</CardTitle>
+          <CardDescription className="text-xs">Add these in Vercel → Project → Settings → Environment Variables. Sensitive values are never exposed to the client.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-1.5">
+            {envVars.map((v) => (
+              <div key={v.name} className="flex items-center gap-3 p-2 rounded border border-border text-xs">
+                {v.present === true ? (
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                ) : v.present === false ? (
+                  <XCircle className="h-3.5 w-3.5 text-rose-500 shrink-0" />
+                ) : (
+                  <div className="h-3.5 w-3.5 rounded-full border-2 border-muted-foreground/30 shrink-0" />
+                )}
+                <code className="font-mono text-[11px] font-semibold min-w-[260px]">{v.name}</code>
+                <span className="text-muted-foreground flex-1">{v.desc}</span>
+                {v.required && <Badge variant="outline" className="text-[9px] bg-rose-50 text-rose-700">required</Badge>}
+              </div>
+            ))}
+          </div>
+          <div className="text-[11px] text-muted-foreground mt-3 p-2 rounded bg-muted">
+            <strong>Setup steps:</strong>
+            <ol className="list-decimal list-inside mt-1 space-y-0.5">
+              <li>Create a Meta Developer account at <a href="https://developers.facebook.com" target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">developers.facebook.com</a></li>
+              <li>Create a Business app, add the <strong>WhatsApp</strong> product</li>
+              <li>Copy the <strong>Phone number ID</strong> and generate a <strong>permanent access token</strong> (System Users → Generate token → permission <code>whatsapp_business_messaging</code>)</li>
+              <li>Add the env vars to Vercel and redeploy</li>
+              <li>Click <strong>Test</strong> below to verify the connection</li>
+            </ol>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Connection card */}
       <Card>
         <CardHeader className="pb-2">
@@ -1317,11 +1510,70 @@ function ApiTab() {
         </CardContent>
       </Card>
 
+      {/* EXTERNAL INTEGRATION (PRIMARY FOR OTHER TOOLS) */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2"><ExternalLink className="h-4 w-4" /> External integration endpoint</CardTitle>
+          <CardDescription className="text-xs">Use this endpoint from <strong>any other tool</strong> (CRM, e-commerce, ERP, custom backend) to send WhatsApp messages. Authenticates via <code>WHATSAPP_API_KEY</code>.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Badge className="text-[10px] bg-emerald-100 text-emerald-700" variant="outline">POST</Badge>
+            <code className="text-xs font-mono flex-1 break-all bg-muted px-2 py-1 rounded">{externalUrl}</code>
+            <Button size="sm" variant="outline" onClick={() => navigator.clipboard.writeText(externalUrl).then(() => toast.success("URL copied"))}>
+              <Copy className="h-3.5 w-3.5 mr-1" /> Copy
+            </Button>
+          </div>
+
+          <div className="flex gap-1 flex-wrap">
+            <Button size="sm" variant={showCurl === "external" ? "default" : "outline"} onClick={() => setShowCurl("external")}>cURL</Button>
+            <Button size="sm" variant={showCurl === "node" ? "default" : "outline"} onClick={() => setShowCurl("node")}>Node.js</Button>
+            <Button size="sm" variant={showCurl === "broadcast" ? "default" : "outline"} onClick={() => setShowCurl("broadcast")}>Bulk broadcast</Button>
+          </div>
+
+          {showCurl === "external" && (
+            <div>
+              <div className="text-[10px] font-medium text-muted-foreground mb-1">Send single template message (external tools use this)</div>
+              <pre className="bg-slate-900 text-slate-100 p-3 rounded text-[10px] overflow-x-auto font-mono leading-relaxed"><code>{curlExternal}</code></pre>
+            </div>
+          )}
+          {showCurl === "node" && (
+            <div>
+              <div className="text-[10px] font-medium text-muted-foreground mb-1">Node.js integration example</div>
+              <pre className="bg-slate-900 text-slate-100 p-3 rounded text-[10px] overflow-x-auto font-mono leading-relaxed"><code>{nodeExample}</code></pre>
+            </div>
+          )}
+          {showCurl === "broadcast" && (
+            <div>
+              <div className="text-[10px] font-medium text-muted-foreground mb-1">Bulk broadcast to multiple recipients</div>
+              <pre className="bg-slate-900 text-slate-100 p-3 rounded text-[10px] overflow-x-auto font-mono leading-relaxed"><code>{curlBroadcast}</code></pre>
+            </div>
+          )}
+
+          <div className="text-xs text-muted-foreground p-2 rounded border border-border">
+            <strong>Request body (external):</strong>
+            <ul className="list-disc list-inside mt-1 space-y-0.5 text-[11px]">
+              <li><code>to</code> — E.164 phone (required)</li>
+              <li><code>templateName</code> — Meta elementName, OR <code>templateId</code> — Marqai internal ID</li>
+              <li><code>language</code> — defaults to "en_US"</li>
+              <li><code>bodyParams</code> — array of values for {"{{1}}"}, {"{{2}}"}, … placeholders (in order)</li>
+              <li><code>text</code> — alternative to template: plain-text message (requires 24h session window)</li>
+              <li><code>campaignId</code>, <code>externalId</code> — optional tracking metadata</li>
+            </ul>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Webhook */}
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base flex items-center gap-2"><Webhook className="h-4 w-4" /> Webhook endpoint</CardTitle>
-          <CardDescription className="text-xs">Configure this URL in your WhatsApp Business Manager → Webhooks.</CardDescription>
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <CardTitle className="text-base flex items-center gap-2"><Webhook className="h-4 w-4" /> Webhook endpoint</CardTitle>
+            <Button size="sm" variant="outline" onClick={refreshWebhookEvents} disabled={eventsLoading}>
+              {eventsLoading ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5 mr-1.5" />} Refresh events
+            </Button>
+          </div>
+          <CardDescription className="text-xs">Configure this URL in WhatsApp Business Manager → Webhooks. Meta will POST delivery / read / failed / inbound events here.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
           <div className="flex items-center gap-2">
@@ -1332,22 +1584,50 @@ function ApiTab() {
           </div>
           <div className="text-[11px] text-muted-foreground">
             Subscribes to: <code>messages</code>, <code>message_status</code>, <code>message_template_status_update</code>.
-            Verify token: <code className="bg-muted px-1 rounded">marqai_verify_2026</code>
+            Verify token: <code className="bg-muted px-1 rounded">marqai_verify_2026</code> (override with <code>WHATSAPP_WEBHOOK_VERIFY_TOKEN</code> env var)
           </div>
+
+          {webhookEvents.length > 0 && (
+            <div className="mt-3">
+              <div className="text-xs font-medium mb-1">Recent webhook events ({webhookEvents.length})</div>
+              <div className="space-y-1 max-h-[300px] overflow-y-auto">
+                {webhookEvents.map((e, i) => (
+                  <div key={i} className="border border-border rounded p-2 text-[10px] font-mono">
+                    <div className="text-muted-foreground mb-1">{new Date(e.receivedAt).toISOString()}</div>
+                    {e.events.length === 0 ? (
+                      <div className="text-muted-foreground italic">Unknown event type</div>
+                    ) : (
+                      e.events.map((ev: any, j: number) => (
+                        <div key={j} className="flex items-center gap-2 mb-0.5">
+                          <Badge variant="outline" className="text-[9px]">{ev.type}</Badge>
+                          {ev.status && <span className="text-blue-700">status={ev.status}</span>}
+                          {ev.from && <span>from={ev.from}</span>}
+                          {ev.messageText && <span className="truncate">text="{ev.messageText}"</span>}
+                          {ev.recipientWamid && <span className="text-muted-foreground truncate">wamid={ev.recipientWamid.slice(0, 30)}…</span>}
+                          {ev.templateName && <span>template={ev.templateName} → {ev.templateStatus}</span>}
+                          {ev.errorCode && <span className="text-rose-600">error={ev.errorCode}: {ev.errorMessage}</span>}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      {/* REST API endpoints */}
+      {/* REST API endpoints (internal — used by Marqai UI itself) */}
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base flex items-center gap-2"><Plug className="h-4 w-4" /> REST API for external integrations</CardTitle>
-          <CardDescription className="text-xs">Other tools and services can use these endpoints to trigger WhatsApp messages for their own products.</CardDescription>
+          <CardTitle className="text-base flex items-center gap-2"><Plug className="h-4 w-4" /> Internal REST API</CardTitle>
+          <CardDescription className="text-xs">Used by the Marqai UI itself. Other tools should prefer the <code>/external/send</code> endpoint above.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <ApiEndpoint
             method="POST"
             path="/api/marqai/whatsapp/send-broadcast"
-            auth="Bearer WHATSAPP_API_KEY"
+            auth="In-app (no key needed)"
             description="Send a broadcast to a list of recipients. Returns per-recipient message IDs."
             body={`{
   "campaignId": "wa-camp-xxx",
@@ -1360,6 +1640,7 @@ function ApiTab() {
 }`}
             response={`{
   "ok": true,
+  "mode": "live",
   "stats": { "sent": 2, "delivered": 0, "read": 0, "failed": 0, "clicked": 0, "replied": 0, "optedOut": 0 },
   "logs": [{ "id": "wa-log-xxx", "contactId": "wa-c-1", "phone": "+14155551234", "providerMessageId": "wamid.HBgL..." }]
 }`}
@@ -1367,19 +1648,42 @@ function ApiTab() {
           <ApiEndpoint
             method="POST"
             path="/api/marqai/whatsapp/send-single"
-            auth="Bearer WHATSAPP_API_KEY"
+            auth="In-app (no key needed)"
             description="Send a single transactional message to one recipient (e.g. order confirmation)."
             body={`{
   "templateId": "wa-tpl-3",
   "phone": "+14155551234",
   "variables": { "{{1}}": "Priya", "{{2}}": "88412", "{{3}}": "https://track.example.com/88412", "{{4}}": "Jul 8, 2026" }
 }`}
-            response={`{ "ok": true, "messageId": "wamid.HBgL...", "status": "queued" }`}
+            response={`{ "ok": true, "messageId": "wamid.HBgL...", "status": "queued", "mode": "live" }`}
+          />
+          <ApiEndpoint
+            method="POST"
+            path="/api/marqai/whatsapp/external/send"
+            auth="Bearer WHATSAPP_API_KEY"
+            description="External integration endpoint — call this from other tools/backends to send WhatsApp messages."
+            body={`{
+  "to": "+14155551234",
+  "templateName": "order_confirmation",
+  "language": "en_US",
+  "bodyParams": ["Alice", "#ORD-1234"],
+  "campaignId": "checkout-flow",
+  "externalId": "ord_123"
+}`}
+            response={`{ "ok": true, "messageId": "wamid.HBgL...", "status": "queued", "mode": "live" }`}
+          />
+          <ApiEndpoint
+            method="GET"
+            path="/api/marqai/whatsapp/health"
+            auth="Public (no key)"
+            description="Check whether the WhatsApp module is in live or demo mode. Returns booleans only — never token values."
+            body="—"
+            response={`{ "ok": true, "configured": true, "mode": "live", "hasToken": true, "hasApiKey": true, "missing": [] }`}
           />
           <ApiEndpoint
             method="POST"
             path="/api/marqai/whatsapp/generate-template"
-            auth="Bearer WHATSAPP_API_KEY"
+            auth="In-app (no key needed)"
             description="Use Marqai AI to draft a Meta-compliant WhatsApp template from a natural-language intent."
             body={`{ "intent": "Diwali greeting + 20% off electronics + free shipping + Diwali10 code" }`}
             response={`{ "ok": true, "template": { "name": "Diwali Sale 2026", "body": "Hi {{1}}, celebrate Diwali with {{2}}% off...", "variables": ["{{1}}", "{{2}}"] } }`}
@@ -1387,7 +1691,7 @@ function ApiTab() {
           <ApiEndpoint
             method="GET"
             path="/api/marqai/whatsapp/message-status?campaignId=wa-camp-1"
-            auth="Bearer WHATSAPP_API_KEY"
+            auth="In-app (no key needed)"
             description="Get delivery / read / click status for all messages in a campaign."
             body="—"
             response={`{ "ok": true, "logs": [{ "id": "wa-log-1", "status": "read", "phone": "+14155551234", "sentAt": "...", "readAt": "..." }] }`}
@@ -1395,27 +1699,11 @@ function ApiTab() {
           <ApiEndpoint
             method="POST"
             path="/api/marqai/whatsapp/webhook"
-            auth="Verify token: marqai_verify_2026"
+            auth="X-Hub-Signature-256 (auto-verified)"
             description="Webhook receiver for WhatsApp Cloud API callbacks (message status, inbound messages, template status)."
             body={`{ "object": "whatsapp_business_account", "entry": [{ "changes": [{ "value": { "messages": [...] } }] }] }`}
-            response={`{ "ok": true }`}
+            response={`{ "ok": true, "received": true, "eventsProcessed": 2 }`}
           />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="pb-2"><CardTitle className="text-base">API key</CardTitle><CardDescription className="text-xs">Use this key in the <code>Authorization: Bearer …</code> header for all REST calls.</CardDescription></CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-2">
-            <Input readOnly value={apiKey ? `${apiKey.slice(0, 12)}…${apiKey.slice(-4)}` : "whatsapp_live_xxxxxxxxxxxxxxxxxxxx"} className="font-mono text-xs" />
-            <Button size="sm" variant="outline" onClick={() => {
-              const key = `whatsapp_live_${uid("")}${uid("")}`;
-              sessionStorage.setItem("whatsapp_api_key", key);
-              setForceRender((n) => n + 1);
-              toast.success("New API key generated (stored in this session only)");
-            }}>Generate</Button>
-          </div>
-          <p className="text-[11px] text-amber-700 mt-2">⚠ This demo stores the API key in <code>sessionStorage</code> only. In production, persist it server-side and rotate regularly.</p>
         </CardContent>
       </Card>
 

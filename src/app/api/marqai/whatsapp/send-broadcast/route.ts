@@ -1,54 +1,65 @@
 // POST /api/marqai/whatsapp/send-broadcast
-// Body: { campaignId: string } OR { templateId, contactIds, variableOverrides? }
-// Returns: { ok, stats, logs }
+// Body: { campaignId?: string, templateId?: string, contactIds?: string[],
+//         variableOverrides?: Record<contactId, Record<placeholder, value>>,
+//         text?: string }
+// Returns: { ok, stats, logs, mode }
 //
-// Sends a WhatsApp template message to multiple recipients at once.
-// In production this calls the Meta WhatsApp Cloud API (or Twilio /
-// MessageBird etc). In this demo it SIMULATES the send: validates
-// inputs, generates provider message IDs, and returns realistic
-// per-recipient logs that the client stores in the in-memory store.
+// Sends a WhatsApp message to multiple recipients at once.
+// Uses Meta Cloud API when env vars are present; otherwise simulates the send.
 //
-// Required env vars for production:
-//   WHATSAPP_API_KEY          — Bearer token clients use to call THIS endpoint
-//   META_ACCESS_TOKEN         — Meta Cloud API permanent access token
-//   META_PHONE_NUMBER_ID      — Phone number ID from Meta Business Manager
+// Required env vars for live mode:
+//   WHATSAPP_ACCESS_TOKEN      — Meta permanent access token
+//   WHATSAPP_PHONE_NUMBER_ID   — Phone number ID from WhatsApp → API Setup
 //
-// Auth: Bearer WHATSAPP_API_KEY (skipped in demo for in-app use).
+// Auth: Bearer WHATSAPP_API_KEY (skipped for in-app use, enforced for /external/* endpoints).
 import { NextRequest, NextResponse } from "next/server";
-import { getZai, getDefaultModel } from "@/lib/zai";
+import { seedWhatsAppTemplates, seedWhatsAppContacts } from "@/lib/marqai/mock-data";
+import {
+  readWhatsAppEnv,
+  isWhatsAppConfigured,
+  normalizePhone,
+  renderTemplateBody,
+  extractPlaceholders,
+  buildTemplateMessage,
+  buildTextMessage,
+  sendMetaMessage,
+  generateDemoWamid,
+} from "@/lib/marqai/whatsapp-client";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 60; // broadcast may iterate many recipients
 
 interface SendBody {
   campaignId?: string;
   templateId?: string;
   contactIds?: string[];
   variableOverrides?: Record<string, Record<string, string>>;
+  text?: string;
 }
 
-// In-memory contact/template lookup — in production these would come
-// from the database. Here we reconstruct the demo seed so the API can
-// run stateless on Vercel.
-import { seedWhatsAppTemplates, seedWhatsAppContacts } from "@/lib/marqai/mock-data";
+interface BroadcastLog {
+  id: string;
+  campaignId: string;
+  templateId: string;
+  templateName: string;
+  contactId: string;
+  contactName: string;
+  phone: string;
+  renderedBody: string;
+  providerMessageId: string;
+  status: "queued" | "failed";
+  error?: string;
+  sentAt: string;
+}
 
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as SendBody;
 
-    // Resolve template + contacts from seed (or override)
+    // Resolve template + contacts
     let template = body.templateId
       ? seedWhatsAppTemplates.find((t) => t.id === body.templateId)
       : seedWhatsAppTemplates[0];
-    if (!template) {
-      return NextResponse.json({ error: "Template not found" }, { status: 404 });
-    }
-    if (template.status !== "approved") {
-      return NextResponse.json(
-        { error: `Template '${template.name}' is ${template.status}. Meta will reject sends.` },
-        { status: 400 },
-      );
-    }
 
     let contacts = body.contactIds
       ? seedWhatsAppContacts.filter((c) => body.contactIds!.includes(c.id))
@@ -63,42 +74,126 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // SIMULATE the send — generate provider message IDs and per-recipient logs.
-    // In production, this loop would POST to:
-    //   https://graph.facebook.com/v18.0/{phone_number_id}/messages
-    // with the template + components, and accumulate real delivery receipts.
-    const logs = contacts.map((c) => {
-      const overrides = body.variableOverrides?.[c.id] ?? {};
-      const renderedBody = renderTemplate(template.body, c, overrides);
-      return {
-        id: `wa-log-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        contactId: c.id,
-        contactName: c.name,
-        phone: c.phone,
-        renderedBody,
-        providerMessageId: generateWamid(),
-        status: "queued" as const,
-      };
-    });
+    const env = readWhatsAppEnv();
+    const configured = isWhatsAppConfigured(env);
 
-    // Simulate Meta accepting all messages (in production some may fail
-    // with 429 rate-limit or invalid-number errors).
-    const stats = {
-      sent: logs.length,
-      delivered: 0, // updated via webhook callbacks in production
-      read: 0,
-      failed: 0,
-      clicked: 0,
-      replied: 0,
-      optedOut: 0,
-    };
+    // Plain-text broadcast (requires 24h session window for each recipient)
+    if (body.text && !template) {
+      const logs: BroadcastLog[] = [];
+      const stats = { sent: 0, delivered: 0, read: 0, failed: 0, clicked: 0, replied: 0, optedOut: 0 };
+
+      for (const c of contacts) {
+        const phone = normalizePhone(c.phone);
+        if (!phone) {
+          logs.push(makeLog(c, body.text, "failed", "", "Invalid phone number"));
+          stats.failed++;
+          continue;
+        }
+
+        if (!configured) {
+          logs.push(makeLog(c, body.text, "queued", generateDemoWamid()));
+          stats.sent++;
+          continue;
+        }
+
+        const payload = buildTextMessage(phone, body.text, true);
+        const result = await sendMetaMessage(env.phoneNumberId!, env.accessToken!, payload);
+        if (result.status === "failed") {
+          logs.push(makeLog(c, body.text, "failed", "", result.error));
+          stats.failed++;
+        } else {
+          logs.push(makeLog(c, body.text, "queued", result.messageId));
+          stats.sent++;
+        }
+      }
+
+      return NextResponse.json({
+        ok: true,
+        stats,
+        logs,
+        mode: configured ? "live" : "demo",
+        campaignId: body.campaignId,
+        note: configured
+          ? undefined
+          : "Demo mode: messages simulated. Configure WHATSAPP_ACCESS_TOKEN + WHATSAPP_PHONE_NUMBER_ID in Vercel to send real messages.",
+      });
+    }
+
+    // Template broadcast
+    if (!template) {
+      return NextResponse.json({ error: "Template not found" }, { status: 404 });
+    }
+    if (template.status !== "approved") {
+      return NextResponse.json(
+        { error: `Template '${template.name}' is ${template.status}. Meta will reject sends.` },
+        { status: 400 },
+      );
+    }
+
+    const placeholders = extractPlaceholders(template.body);
+
+    const logs: BroadcastLog[] = [];
+    const stats = { sent: 0, delivered: 0, read: 0, failed: 0, clicked: 0, replied: 0, optedOut: 0 };
+
+    for (const c of contacts) {
+      const overrides = body.variableOverrides?.[c.id] ?? {};
+      const phone = normalizePhone(c.phone);
+      if (!phone) {
+        logs.push(makeLog(c, template.body, "failed", "", "Invalid phone number", template.id, template.name, body.campaignId));
+        stats.failed++;
+        continue;
+      }
+
+      const bodyParams = placeholders.map((p, i) => {
+        if (overrides[p]) return overrides[p];
+        const samples = [
+          c.name,
+          c.customFields?.lastOrder ?? "20",
+          c.customFields?.city ?? "your city",
+          "PROMO10",
+          "https://shop.example.com",
+          c.email ?? "",
+        ];
+        return samples[i] ?? p;
+      });
+      const renderedBody = renderTemplateBody(template.body, overrides);
+
+      if (!configured) {
+        logs.push(makeLog(c, renderedBody, "queued", generateDemoWamid(), undefined, template.id, template.name, body.campaignId));
+        stats.sent++;
+        continue;
+      }
+
+      const payload = buildTemplateMessage(
+        phone,
+        template.elementName,
+        template.language,
+        bodyParams,
+        [],
+        {},
+      );
+      const result = await sendMetaMessage(env.phoneNumberId!, env.accessToken!, payload);
+
+      if (result.status === "failed") {
+        logs.push(makeLog(c, renderedBody, "failed", "", result.error, template.id, template.name, body.campaignId));
+        stats.failed++;
+      } else {
+        logs.push(makeLog(c, renderedBody, "queued", result.messageId, undefined, template.id, template.name, body.campaignId));
+        stats.sent++;
+      }
+    }
 
     return NextResponse.json({
       ok: true,
       stats,
       logs,
-      note:
-        "Demo mode: messages were simulated. In production, the Meta Cloud API is called and delivery / read receipts arrive via the /webhook endpoint.",
+      mode: configured ? "live" : "demo",
+      campaignId: body.campaignId,
+      templateId: template.id,
+      templateName: template.name,
+      note: configured
+        ? undefined
+        : "Demo mode: messages simulated. Configure WHATSAPP_ACCESS_TOKEN + WHATSAPP_PHONE_NUMBER_ID in Vercel to send real messages.",
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -106,28 +201,28 @@ export async function POST(req: NextRequest) {
   }
 }
 
-function renderTemplate(
-  body: string,
-  contact: { name: string; phone: string; email?: string; customFields?: Record<string, string> },
-  overrides: Record<string, string>,
-): string {
-  let out = body;
-  const samples = [
-    contact.name,
-    contact.customFields?.lastOrder ?? "20",
-    contact.customFields?.city ?? "your city",
-    "PROMO10",
-    "https://shop.example.com",
-    contact.email ?? "",
-  ];
-  const matches = body.match(/\{\{(\d+)\}\}/g) ?? [];
-  matches.forEach((m, i) => {
-    const v = overrides[m] ?? samples[i] ?? m;
-    out = out.replace(new RegExp(m.replace(/[{}]/g, "\\$&"), "g"), v);
-  });
-  return out;
-}
-
-function generateWamid(): string {
-  return `wamid.HBgL${Math.random().toString(36).slice(2, 14).toUpperCase()}${Math.random().toString(36).slice(2, 14).toUpperCase()}`;
+function makeLog(
+  contact: { id: string; name: string; phone: string },
+  renderedBody: string,
+  status: "queued" | "failed",
+  providerMessageId: string,
+  error?: string,
+  templateId?: string,
+  templateName?: string,
+  campaignId?: string,
+): BroadcastLog {
+  return {
+    id: `wa-log-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    campaignId: campaignId ?? `wa-camp-${Date.now()}`,
+    templateId: templateId ?? "",
+    templateName: templateName ?? "",
+    contactId: contact.id,
+    contactName: contact.name,
+    phone: contact.phone,
+    renderedBody,
+    providerMessageId,
+    status,
+    error,
+    sentAt: new Date().toISOString(),
+  };
 }
