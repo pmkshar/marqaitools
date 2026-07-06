@@ -311,7 +311,7 @@ Send an email campaign (simulated in this build).
 
 ### 3.6 POST /api/marqai/test-ai-tool
 
-Run the AI tool testing suite against any AI tool.
+Run the AI tool testing suite against any AI tool. The test prompt now follows Marqai's 33-item testing taxonomy — each test case is tagged with the AI test scenario it maps to (from the 9 AI-Specific Test Scenarios), and the response includes a `scenariosCovered` array.
 
 **Required permission:** `ai-testing: execute` or higher.
 
@@ -323,11 +323,62 @@ Run the AI tool testing suite against any AI tool.
 {
   "toolName": "ChatGPT 4o",
   "toolUrl": "https://chat.openai.com",
-  "toolType": "chatbot"
+  "toolType": "chatbot",
+  "focusAreas": "All categories",
+  "customTestCases": "One test case per line (optional)"
 }
 ```
 
-**Response:** See `AiToolTestReport` type in `src/lib/marqai/types.ts`.
+**Response:** See `AiToolTestReport` type in `src/lib/marqai/types.ts`. Each test case now includes a `scenario` field (the name of the AI test scenario it maps to), and the report includes a `scenariosCovered` array listing all AI scenarios tested.
+
+---
+
+### 3.7 GET /api/marqai/module-reports
+
+Live QA status report for every Marqai module. Probes each AI-powered module's endpoint in parallel to determine current AI integration status (works / fallback / broken).
+
+**Required permission:** None (read-only).
+
+**Credit cost:** 0 (uses tiny "ping" calls, not full AI generations).
+
+**Response:**
+
+```json
+{
+  "ok": true,
+  "generatedAt": "2026-07-06T04:30:00.000Z",
+  "summary": {
+    "totalModules": 17,
+    "aiPowered": 8,
+    "aiWorking": 8,
+    "aiFallback": 0,
+    "avgFunctionalCoverage": 95,
+    "totalOpenIssues": 9,
+    "smokePassing": 17,
+    "strategiesApplied": 14,
+    "scenariosApplied": 9
+  },
+  "reports": [
+    {
+      "moduleId": "leads-generator",
+      "moduleName": "Leads Generator",
+      "category": "AI-powered",
+      "functionalCoverage": 93,
+      "aiIntegrationStatus": "works",
+      "smokeTestStatus": "pass",
+      "lastTestedAt": "2026-07-06T04:30:00.000Z",
+      "openIssues": 1,
+      "applicableStrategies": ["req-risk-based", "smoke-post-deploy", "functional", "regression", "integration", "ai-model-validation", "ai-prompt-hallucination", "ai-bias-fairness", "ai-fallback"],
+      "applicableScenarios": ["recommendation-relevance", "personalization", "duplicate-detection", "recommendation-latency", "ai-fallback"],
+      "notes": "Calls /api/marqai/generate-leads. CAN-SPAM: emails are first.last@domain pattern, must be verified before sending."
+    }
+  ],
+  "taxonomy": {
+    "strategies": [{ "id": "req-risk-based", "name": "Requirement & Risk-Based Testing", "summary": "...", "when": "per-release" }],
+    "scenarios": [{ "id": "prompt-injection", "name": "Prompt injection resistance", "summary": "...", "when": "per-release" }]
+  }
+}
+```
 
 ---
 

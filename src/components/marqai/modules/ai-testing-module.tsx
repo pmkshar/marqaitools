@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMarqai } from "@/lib/marqai/store";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -44,9 +44,17 @@ import {
   Shield,
   Brain,
   Code2,
+  BookOpen,
+  ClipboardList,
+  RefreshCw,
 } from "lucide-react";
 import type { AiToolTestReport } from "@/lib/marqai/types";
 import { formatDateTime, scoreColor, uid } from "@/lib/marqai/utils";
+import {
+  TESTING_TAXONOMY,
+  TOTAL_TESTING_ITEMS,
+  type TestingCategory,
+} from "@/lib/marqai/testing-taxonomy";
 import {
   ResponsiveContainer,
   RadarChart,
@@ -162,6 +170,88 @@ export function AiTestingModule() {
         </CardContent>
       </Card>
 
+      <Tabs defaultValue="runner" className="w-full">
+        <TabsList className="grid w-full grid-cols-3 max-w-md">
+          <TabsTrigger value="runner" className="text-xs">
+            <Play className="h-3.5 w-3.5 mr-1.5" /> Test Runner
+          </TabsTrigger>
+          <TabsTrigger value="playbook" className="text-xs">
+            <BookOpen className="h-3.5 w-3.5 mr-1.5" /> Playbook
+          </TabsTrigger>
+          <TabsTrigger value="reports" className="text-xs">
+            <ClipboardList className="h-3.5 w-3.5 mr-1.5" /> Module Reports
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="runner" className="space-y-6 mt-4">
+          <TestRunnerTab
+            reports={reports}
+            addReport={addReport}
+            toolName={toolName}
+            setToolName={setToolName}
+            toolUrl={toolUrl}
+            setToolUrl={setToolUrl}
+            toolType={toolType}
+            setToolType={setToolType}
+            focusAreas={focusAreas}
+            setFocusAreas={setFocusAreas}
+            customTestCases={customTestCases}
+            setCustomTestCases={setCustomTestCases}
+            loading={loading}
+            setLoading={setLoading}
+            preview={preview}
+            setPreview={setPreview}
+            runTest={runTest}
+          />
+        </TabsContent>
+
+        <TabsContent value="playbook" className="mt-4">
+          <TestingPlaybook />
+        </TabsContent>
+
+        <TabsContent value="reports" className="mt-4">
+          <ModuleReportsSection />
+        </TabsContent>
+      </Tabs>
+
+      {/* Preview modal — shared across tabs */}
+      {preview && <ReportPreview report={preview} onClose={() => setPreview(null)} />}
+    </div>
+  );
+}
+
+// ============================================================
+// TAB 1: TEST RUNNER (existing tool testing UI, refactored)
+// ============================================================
+interface TestRunnerTabProps {
+  reports: AiToolTestReport[];
+  addReport: (r: AiToolTestReport) => void;
+  toolName: string;
+  setToolName: (v: string) => void;
+  toolUrl: string;
+  setToolUrl: (v: string) => void;
+  toolType: AiToolTestReport["toolType"];
+  setToolType: (v: AiToolTestReport["toolType"]) => void;
+  focusAreas: string;
+  setFocusAreas: (v: string) => void;
+  customTestCases: string;
+  setCustomTestCases: (v: string) => void;
+  loading: boolean;
+  setLoading: (v: boolean) => void;
+  preview: AiToolTestReport | null;
+  setPreview: (r: AiToolTestReport | null) => void;
+  runTest: () => Promise<void>;
+}
+
+function TestRunnerTab(props: TestRunnerTabProps) {
+  const {
+    reports, toolName, setToolName, toolUrl, setToolUrl,
+    toolType, setToolType, focusAreas, setFocusAreas,
+    customTestCases, setCustomTestCases, loading, runTest, setPreview,
+  } = props;
+
+  return (
+    <>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard label="Tools tested" value={reports.length} icon={FlaskConical} accent="violet" hint="all time" />
         <KpiCard label="Avg score" value={reports.length ? Math.round(reports.reduce((s, r) => s + r.overallScore, 0) / reports.length) : "—"} icon={Brain} accent="emerald" />
@@ -326,9 +416,332 @@ export function AiTestingModule() {
           </CardContent>
         </Card>
       )}
+    </>
+  );
+}
 
-      {/* Preview modal */}
-      {preview && <ReportPreview report={preview} onClose={() => setPreview(null)} />}
+// ============================================================
+// TAB 2: TESTING PLAYBOOK — the 3-category taxonomy
+// ============================================================
+function TestingPlaybook() {
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardContent className="p-6">
+          <div className="flex items-start gap-3 mb-4">
+            <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+              <BookOpen className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold">Marqai AI Testing Playbook</h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                A complete QA playbook for any AI platform, AI tool, or AI-powered software.
+                {TOTAL_TESTING_ITEMS} items across 3 categories — apply these to test thoroughly
+                and get the desired output reports.
+              </p>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-3 text-center">
+            {TESTING_TAXONOMY.map((cat) => (
+              <div key={cat.id} className="rounded-lg border border-border p-3">
+                <div className="text-2xl font-bold text-primary">{cat.items.length}</div>
+                <div className="text-xs text-muted-foreground mt-1">{cat.name}</div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {TESTING_TAXONOMY.map((category) => (
+        <TestingCategorySection key={category.id} category={category} />
+      ))}
+    </div>
+  );
+}
+
+function TestingCategorySection({ category }: { category: TestingCategory }) {
+  const [openId, setOpenId] = useState<string | null>(null);
+
+  const whenColors: Record<string, string> = {
+    "pre-deploy": "bg-blue-100 text-blue-700",
+    "post-deploy": "bg-emerald-100 text-emerald-700",
+    "per-release": "bg-violet-100 text-violet-700",
+    "per-sprint": "bg-amber-100 text-amber-700",
+    "continuous": "bg-rose-100 text-rose-700",
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          {category.name}
+          <Badge variant="secondary" className="text-[10px]">{category.items.length} items</Badge>
+        </CardTitle>
+        <CardDescription className="text-xs">{category.description}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {category.items.map((item) => {
+          const isOpen = openId === item.id;
+          return (
+            <div key={item.id} className="rounded-lg border border-border overflow-hidden">
+              <button
+                onClick={() => setOpenId(isOpen ? null : item.id)}
+                className="w-full flex items-start gap-3 p-3 hover:bg-muted/40 transition-colors text-left"
+              >
+                <div className="h-6 w-6 rounded bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-medium">{item.name}</span>
+                    <Badge variant="outline" className={`text-[10px] ${whenColors[item.when] || ""}`}>
+                      {item.when}
+                    </Badge>
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-0.5">{item.summary}</div>
+                </div>
+              </button>
+              {isOpen && (
+                <div className="px-3 pb-3 pt-1 ml-9 space-y-3 text-xs">
+                  <div>
+                    <div className="font-medium text-foreground mb-1">Description</div>
+                    <p className="text-muted-foreground leading-relaxed">{item.description}</p>
+                  </div>
+                  <div>
+                    <div className="font-medium text-foreground mb-1">Examples</div>
+                    <ul className="space-y-1">
+                      {item.examples.map((ex, i) => (
+                        <li key={i} className="text-muted-foreground flex items-start gap-1.5">
+                          <span className="text-primary mt-0.5">→</span>
+                          <span>{ex}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="rounded-md bg-emerald-50 border border-emerald-200 p-2">
+                    <div className="font-medium text-emerald-900 mb-0.5">Pass criteria</div>
+                    <p className="text-emerald-800">{item.passCriteria}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ============================================================
+// TAB 3: MODULE REPORTS — per-module QA status
+// ============================================================
+interface ModuleReport {
+  moduleId: string;
+  moduleName: string;
+  category: "AI-powered" | "Integration" | "CRUD" | "Informational";
+  functionalCoverage: number;
+  aiIntegrationStatus: "works" | "fallback" | "broken" | "n/a";
+  smokeTestStatus: "pass" | "fail" | "n/a";
+  lastTestedAt: string;
+  openIssues: number;
+  applicableStrategies: string[];
+  applicableScenarios: string[];
+  notes: string;
+}
+
+function ModuleReportsSection() {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function load() {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/marqai/module-reports");
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to load");
+      setData(json);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load module reports");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Auto-load on mount
+  useEffect(() => {
+    load();
+  }, []);
+
+  if (loading && !data) {
+    return (
+      <Card>
+        <CardContent>
+          <LoadingState message="Probing all 17 modules — running AI ping for each AI-powered module..." />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (error && !data) {
+    return (
+      <Card>
+        <CardContent>
+          <EmptyState
+            icon={AlertCircle}
+            title="Failed to load module reports"
+            description={error}
+          />
+          <Button onClick={load} variant="outline" size="sm" className="mt-2">
+            <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Retry
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!data) return null;
+
+  const summary = data.summary;
+  const reports: ModuleReport[] = data.reports;
+
+  const categoryColors: Record<string, string> = {
+    "AI-powered": "bg-violet-100 text-violet-700",
+    "Integration": "bg-blue-100 text-blue-700",
+    "CRUD": "bg-emerald-100 text-emerald-700",
+    "Informational": "bg-slate-100 text-slate-700",
+  };
+
+  const aiStatusColors: Record<string, string> = {
+    "works": "bg-emerald-100 text-emerald-700",
+    "fallback": "bg-amber-100 text-amber-700",
+    "broken": "bg-rose-100 text-rose-700",
+    "n/a": "bg-slate-100 text-slate-500",
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Summary KPIs */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <KpiCard label="Total modules" value={summary.totalModules} icon={ClipboardList} accent="violet" />
+        <KpiCard label="AI working" value={`${summary.aiWorking}/${summary.aiPowered}`} icon={CheckCircle2} accent="emerald" hint="live probe" />
+        <KpiCard label="Avg functional coverage" value={`${summary.avgFunctionalCoverage}%`} icon={TrendingUp} accent="amber" />
+        <KpiCard label="Open issues" value={summary.totalOpenIssues} icon={AlertCircle} accent="rose" />
+      </div>
+
+      {/* Taxonomy summary */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <BookOpen className="h-4 w-4" /> Testing taxonomy applied
+          </CardTitle>
+          <CardDescription className="text-xs">
+            Every module is tested against this taxonomy. {TOTAL_TESTING_ITEMS} total items across 3 categories.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-3 gap-3 text-center">
+            <div className="rounded-lg border border-border p-3">
+              <div className="text-2xl font-bold text-primary">{summary.strategiesApplied}</div>
+              <div className="text-xs text-muted-foreground mt-1">Testing Strategies</div>
+            </div>
+            <div className="rounded-lg border border-border p-3">
+              <div className="text-2xl font-bold text-primary">10</div>
+              <div className="text-xs text-muted-foreground mt-1">Testing Methodologies</div>
+            </div>
+            <div className="rounded-lg border border-border p-3">
+              <div className="text-2xl font-bold text-primary">{summary.scenariosApplied}</div>
+              <div className="text-xs text-muted-foreground mt-1">AI Test Scenarios</div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Module report table */}
+      <Card>
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base flex items-center gap-2">
+              <ClipboardList className="h-4 w-4" /> Per-module QA status ({reports.length})
+            </CardTitle>
+            <Button onClick={load} variant="outline" size="sm" disabled={loading}>
+              <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${loading ? "animate-spin" : ""}`} />
+              {loading ? "Re-probing..." : "Re-probe"}
+            </Button>
+          </div>
+          <CardDescription className="text-xs">
+            Last probe: {data.generatedAt ? formatDateTime(data.generatedAt) : "—"}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {reports.map((r) => (
+            <div key={r.moduleId} className="rounded-lg border border-border p-3">
+              <div className="flex items-start justify-between gap-3 mb-2">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-medium">{r.moduleName}</span>
+                    <Badge variant="outline" className={`text-[10px] ${categoryColors[r.category]}`}>
+                      {r.category}
+                    </Badge>
+                    {r.smokeTestStatus === "pass" && (
+                      <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700">
+                        <CheckCircle2 className="h-2.5 w-2.5 mr-1" /> smoke pass
+                      </Badge>
+                    )}
+                    {r.openIssues > 0 && (
+                      <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700">
+                        {r.openIssues} open
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1">{r.notes}</div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {r.category === "AI-powered" && (
+                    <Badge variant="outline" className={`text-[10px] ${aiStatusColors[r.aiIntegrationStatus]}`}>
+                      AI: {r.aiIntegrationStatus}
+                    </Badge>
+                  )}
+                  <div className="text-right">
+                    <div className="text-sm font-semibold">{r.functionalCoverage}%</div>
+                    <div className="text-[10px] text-muted-foreground">coverage</div>
+                  </div>
+                </div>
+              </div>
+              <div className="ml-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <Progress value={r.functionalCoverage} className="h-1.5 flex-1" />
+                </div>
+                {(r.applicableStrategies.length > 0 || r.applicableScenarios.length > 0) && (
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {r.applicableStrategies.slice(0, 4).map((s) => (
+                      <span key={s} className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700">
+                        {s}
+                      </span>
+                    ))}
+                    {r.applicableStrategies.length > 4 && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-50 text-slate-500">
+                        +{r.applicableStrategies.length - 4} more
+                      </span>
+                    )}
+                    {r.applicableScenarios.slice(0, 3).map((s) => (
+                      <span key={s} className="text-[10px] px-1.5 py-0.5 rounded bg-violet-50 text-violet-700">
+                        {s}
+                      </span>
+                    ))}
+                    {r.applicableScenarios.length > 3 && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-50 text-slate-500">
+                        +{r.applicableScenarios.length - 3} more
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -474,7 +887,12 @@ function ReportPreview({ report, onClose }: { report: AiToolTestReport; onClose:
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-base">Test case results</CardTitle>
-              <CardDescription>{report.testCases.length} test cases executed</CardDescription>
+              <CardDescription>
+                {report.testCases.length} test cases executed
+                {report.scenariosCovered && report.scenariosCovered.length > 0 && (
+                  <> · {report.scenariosCovered.length} AI scenarios covered</>
+                )}
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-2 max-h-96 overflow-y-auto scroll-thin">
               {report.testCases.map((tc) => {
@@ -486,6 +904,11 @@ function ReportPreview({ report, onClose }: { report: AiToolTestReport; onClose:
                       <div className="flex items-center gap-2 min-w-0">
                         <Icon className={`h-4 w-4 shrink-0 ${color}`} />
                         <span className="text-sm font-medium truncate">{tc.name}</span>
+                        {tc.scenario && (
+                          <Badge variant="outline" className="text-[10px] bg-violet-50 text-violet-700 shrink-0">
+                            {tc.scenario}
+                          </Badge>
+                        )}
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         <Badge variant="outline" className="text-[10px]">{tc.latencyMs}ms</Badge>
@@ -627,6 +1050,7 @@ function normalizeReport(r: any, url: string): AiToolTestReport {
       status: tc.status ?? "partial",
       latencyMs: clampNum(tc.latencyMs, 0, 60000, 1500),
       notes: tc.notes ?? "",
+      scenario: tc.scenario ?? undefined,
     })),
     strengths: r.strengths ?? [],
     weaknesses: r.weaknesses ?? [],
@@ -641,6 +1065,7 @@ function normalizeReport(r: any, url: string): AiToolTestReport {
       industryAvg: clampNum(b.industryAvg, 0, 100000, 0),
       unit: b.unit ?? "",
     })),
+    scenariosCovered: Array.isArray(r.scenariosCovered) ? r.scenariosCovered : [],
   };
 }
 

@@ -68,3 +68,4 @@ db/*.db-journal
 prisma/*.db
 prisma/*.db-journal
 .github/workflows/
+tool-results/

@@ -110,11 +110,41 @@ email=user@example.com&password=...&csrfToken=...`}</code></pre>
 
           <div className="rounded-md border p-3">
             <div className="font-mono text-xs text-emerald-700">POST /api/marqai/test-ai-tool</div>
-            <div className="text-xs text-muted-foreground mt-1">Run the AI tool testing suite. Permission: ai-testing:execute+. Cost: 50 credits.</div>
+            <div className="text-xs text-muted-foreground mt-1">
+              Run the AI tool testing suite. Permission: ai-testing:execute+. Cost: 50 credits.
+              The test prompt now follows Marqai's 33-item testing taxonomy (14 strategies + 10 methodologies + 9 AI scenarios)
+              — each test case is tagged with the AI scenario it maps to.
+            </div>
             <pre className="bg-muted p-2 rounded mt-2 text-xs overflow-x-auto"><code>{`{
   "toolName": "ChatGPT 4o",
   "toolUrl": "https://chat.openai.com",
-  "toolType": "chatbot"
+  "toolType": "chatbot",
+  "focusAreas": "All categories",
+  "customTestCases": "One test case per line"
+}`}</code></pre>
+          </div>
+
+          <div className="rounded-md border p-3">
+            <div className="font-mono text-xs text-emerald-700">GET /api/marqai/module-reports</div>
+            <div className="text-xs text-muted-foreground mt-1">
+              Live QA status for every Marqai module. Probes each AI-powered module's endpoint,
+              returns functional coverage %, AI integration status (works/fallback/broken),
+              smoke test status, open issues, and which Testing Strategies + AI Test Scenarios apply.
+              Also returns the full testing taxonomy (33 items). No permission required (read-only).
+            </div>
+            <pre className="bg-muted p-2 rounded mt-2 text-xs overflow-x-auto"><code>{`// Response shape:
+{
+  "ok": true,
+  "generatedAt": "ISO timestamp",
+  "summary": {
+    "totalModules": 17,
+    "aiPowered": 8,
+    "aiWorking": 8,
+    "avgFunctionalCoverage": 95,
+    "totalOpenIssues": 9
+  },
+  "reports": [{ "moduleId": "leads-generator", "moduleName": "Leads Generator", ... }],
+  "taxonomy": { "strategies": [...], "scenarios": [...] }
 }`}</code></pre>
           </div>
         </div>

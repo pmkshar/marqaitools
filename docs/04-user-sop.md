@@ -241,24 +241,60 @@ This document is a step-by-step playbook for using Marqai day-to-day. Each SOP i
 **Who:** Anyone with `ai-testing: execute` or higher (Scale plan and above only)
 **When:** Evaluating AI tools for purchase, benchmarking, vendor comparison
 
-1. Click **AI Tool Testing** in the sidebar.
-2. Click **New test**.
-3. Fill in:
+The AI Testing module has 3 tabs: **Test Runner**, **Playbook**, and **Module Reports**.
+
+### 11.1 — Run a test suite (Test Runner tab)
+
+1. Click **AI Tool Testing** in the sidebar → **Test Runner** tab.
+2. Fill in:
    - Tool name (e.g. "ChatGPT 4o")
    - Tool URL
    - Tool type: Chatbot / Image-gen / Video-gen / Agent / RAG / Code-assistant / Voice / Other
-4. Click **Run test suite**.
-5. Wait 2–5 minutes while 40+ test cases run.
-6. Review the report card:
+   - Focus areas (optional): All categories, Accuracy & hallucination, Latency & cost, Safety & refusal, Reasoning, Multilingual, Context handling, Output diversity
+   - Custom test cases (optional): one per line
+3. Click **Run test suite**.
+4. Wait ~30 seconds while 8-12 test cases run, each tagged with the AI test scenario it maps to.
+5. Review the report card:
    - **Overall score** (0-100) and **grade** (A+ to F).
    - **Per-category scores** — accuracy, latency, safety, reasoning, code, cost, diversity, context.
-   - **Per-test-case detail** — prompt, expected behavior, actual behavior, pass/partial/fail, latency.
+   - **Per-test-case detail** — prompt, expected behavior, actual behavior, pass/partial/fail, latency, scenario tag.
    - **Strengths** and **weaknesses**.
    - **Recommendations** — prioritized improvements or use-case fits.
    - **Benchmark comparison** — how this tool stacks up vs industry averages.
-7. Save to history. Export as PDF for stakeholder review.
+   - **Scenarios covered** — list of AI test scenarios from Marqai's 33-item testing taxonomy.
+6. Save to history. Export as PDF for stakeholder review.
 
 **Credit cost:** 50 AI credits per test suite.
+
+### 11.2 — Browse the testing playbook (Playbook tab)
+
+1. Click **AI Tool Testing** → **Playbook** tab.
+2. Browse the 33-item QA playbook across 3 categories:
+   - **Testing Strategies** (14 items) — WHAT to test: functional, regression, integration, performance, security, accessibility, AI model validation, AI bias, disaster recovery, and more.
+   - **Testing Methodologies** (10 items) — HOW to test: Agile sprint, shift-left, manual, API, automation, exploratory, data validation, UAT, production smoke.
+   - **AI-Specific Test Scenarios** (9 items) — Concrete AI test cases: recommendation relevance, semantic search, chatbot correctness, prompt injection, personalization, duplicate detection, latency, feedback learning, AI fallback.
+3. Click any item to expand it — see description, examples, pass criteria, when-in-SDLC it runs.
+4. Use this tab to plan a comprehensive QA strategy for any AI platform, AI tool, or AI-powered software.
+
+**Credit cost:** 0 (read-only).
+
+### 11.3 — Check live QA status (Module Reports tab)
+
+1. Click **AI Tool Testing** → **Module Reports** tab.
+2. UI auto-loads from `GET /api/marqai/module-reports` — probes every AI-powered module's endpoint in parallel.
+3. Review summary KPIs: total modules, AI working (live count), avg functional coverage, open issues.
+4. For each of the 17 modules, see:
+   - Module name + category (AI-powered / Integration / CRUD / Informational)
+   - Functional coverage % (progress bar)
+   - AI integration status: works / fallback / broken / n/a
+   - Smoke test status: pass / fail / n/a
+   - Open issues count
+   - Applicable Testing Strategies + AI Test Scenarios (as tags)
+   - Notes explaining what the module does + any known issues
+5. Click **Re-probe** to re-run the live AI endpoint check.
+6. Use this tab to identify which modules need attention, which AI endpoints are down, and which strategies apply to each module.
+
+**Credit cost:** 0 (read-only — uses tiny ping calls, not full AI generations).
 
 ---
 

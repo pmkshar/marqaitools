@@ -118,13 +118,86 @@ Marqai is a multi-tenant SaaS platform that bundles seven marketing workflows an
 
 ### 3.6 AI QA Analyst tests an AI tool
 
-1. User with `ai-testing: manage` navigates to **AI Tool Testing**.
+The AI Testing module has 3 tabs:
+
+**Tab 1 — Test Runner** (run a test suite against any AI tool)
+
+1. User with `ai-testing: manage` navigates to **AI Tool Testing** → **Test Runner** tab.
 2. Enters the AI tool's name and URL.
 3. Picks tool type (chatbot, image-gen, video-gen, agent, rag, code-assistant, voice, other).
-4. Clicks **Run test suite**.
-5. Backend runs 40+ test cases against the tool.
-6. UI shows: overall score (0-100), grade (A+ to F), per-category scores, per-test pass/partial/fail, strengths/weaknesses, recommendations, benchmark vs industry, radar chart.
-7. Report is saved to history. **Cost: 50 AI credits.**
+4. Optionally adds custom test cases (one per line) + selects focus areas.
+5. Clicks **Run test suite**.
+6. Backend runs 8-12 test cases against the tool, each tagged with the AI test scenario it maps to (from Marqai's 33-item testing taxonomy).
+7. UI shows: overall score (0-100), grade (A+ to F), per-category scores, per-test pass/partial/fail with scenario tags, strengths/weaknesses, recommendations, benchmark vs industry, radar chart, scenarios covered.
+8. Report is saved to history. **Cost: 50 AI credits.**
+
+**Tab 2 — Playbook** (browse the 33-item testing taxonomy)
+
+1. User clicks the **Playbook** tab.
+2. UI shows 3 categories: **Testing Strategies** (14 items), **Testing Methodologies** (10 items), **AI-Specific Test Scenarios** (9 items).
+3. Each item is expandable — click to see description, examples, pass criteria, and when-in-SDLC it runs.
+4. Use this tab to plan a comprehensive QA strategy for any AI platform, AI tool, or AI-powered software.
+
+**Tab 3 — Module Reports** (live QA status for every Marqai module)
+
+1. User clicks the **Module Reports** tab.
+2. UI auto-loads from `GET /api/marqai/module-reports` — probes every AI-powered module's endpoint in parallel.
+3. Shows summary KPIs: total modules, AI working (live count), avg functional coverage, open issues.
+4. For each of the 17 modules, shows: module name, category (AI-powered/Integration/CRUD/Informational), functional coverage %, AI integration status (works/fallback/broken/n/a), smoke test status, open issues count, applicable Testing Strategies + AI Test Scenarios as tags, and notes.
+5. Click **Re-probe** to re-run the live AI endpoint check.
+
+#### 3.6.1 Marqai Testing Taxonomy (33 items across 3 categories)
+
+This is the complete QA playbook shipped with the AI Testing module. It's the single source of truth — defined in `src/lib/marqai/testing-taxonomy.ts` — and used by the UI, the test runner prompt, the module reports endpoint, and the documentation.
+
+**A. Testing Strategies** (14 items — coverage types defining WHAT to test)
+
+| # | Strategy | When |
+|---|----------|------|
+| 1 | Requirement & Risk-Based Testing | per-release |
+| 2 | Smoke Testing after every deployment | post-deploy |
+| 3 | Functional Testing of all modules | per-sprint |
+| 4 | Regression Testing for every sprint/release | per-release |
+| 5 | Integration Testing with payment, shipping and ERP APIs | per-release |
+| 6 | Performance & Load Testing | per-release |
+| 7 | Security & Penetration Testing | per-release |
+| 8 | Cross Browser & Responsive Testing | per-release |
+| 9 | Accessibility Testing (WCAG) | per-release |
+| 10 | AI Model Validation & Recommendation Accuracy | continuous |
+| 11 | AI Prompt & Hallucination Testing | per-release |
+| 12 | AI Bias/Fairness Testing | per-release |
+| 13 | AI Search Relevance Testing | per-release |
+| 14 | Disaster Recovery & Backup Validation | continuous |
+
+**B. Testing Methodologies** (10 items — process models defining HOW to test)
+
+| # | Methodology | When |
+|---|-------------|------|
+| 1 | Agile Sprint Testing | per-sprint |
+| 2 | Shift-Left Testing | continuous |
+| 3 | Manual Testing | per-release |
+| 4 | API Testing | continuous |
+| 5 | Automation Testing (UI/API) | continuous |
+| 6 | Exploratory Testing | per-release |
+| 7 | Data Validation Testing | continuous |
+| 8 | UAT (User Acceptance Testing) | per-release |
+| 9 | Production Smoke Validation | continuous |
+
+**C. AI-Specific Test Scenarios** (9 items — concrete AI test cases)
+
+| # | Scenario | What it tests |
+|---|----------|---------------|
+| 1 | Product recommendation relevance | Recommendations match user context; rated 4+ on 5-scale by humans |
+| 2 | Semantic search accuracy | Paraphrased queries return same top-3 results; NDCG@3 ≥ 0.8 |
+| 3 | Chatbot response correctness | Factual correctness ≥ 95%, citation rate ≥ 90%, hallucination < 5% |
+| 4 | Prompt injection resistance | 100% refusal on injection attempts, 0% system prompt leakage |
+| 5 | Personalization validation | ≥ 90% of context variations produce visibly different outputs |
+| 6 | Duplicate recommendation detection | 100% intra-call uniqueness, < 30% inter-call overlap |
+| 7 | Recommendation latency | P95 latency targets met per route (Leads < 15s, Content < 8s, etc.) |
+| 8 | Feedback learning verification | Feedback captured for 100% of rated outputs, ≥ 5% feedback rate |
+| 9 | AI fallback when model unavailable | 100% of AI features have tested fallback engaging within 5s |
+
+Each item in the taxonomy has: name, summary, full description, 3 concrete examples, pass criteria, and when-in-SDLC it runs. The full definitions are in `src/lib/marqai/testing-taxonomy.ts` and rendered in the in-app Playbook tab.
 
 ---
 

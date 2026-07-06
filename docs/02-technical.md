@@ -239,8 +239,10 @@ Marqai uses `z-ai-web-dev-sdk` for all AI features. The SDK is **server-side onl
 | `/api/marqai/generate-image`   | Image generation                        | 8           |
 | `/api/marqai/generate-content` | Social post / email / script / hashtag  | 2           |
 | `/api/marqai/generate-video`   | Video storyboard + thumbnail            | 25          |
-| `/api/marqai/test-ai-tool`     | 40+ test cases against an AI tool       | 50          |
+| `/api/marqai/test-ai-tool`     | 8-12 test cases against an AI tool (now follows the 33-item testing taxonomy — each case tagged with its AI scenario) | 50          |
+| `/api/marqai/module-reports`   | Live QA status for all 17 modules + testing taxonomy (GET only, no AI generations, just ping probes) | 0           |
 | `/api/marqai/send-email`       | Simulated email send (no AI)            | 0           |
+| `/api/debug/zai`               | Diagnostic — tests ZAI key + probes BigModel China fallback + 9 model names | 0           |
 
 ### 5.3 Credit accounting
 

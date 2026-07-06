@@ -129,6 +129,98 @@ export function FunctionalDoc() {
           ))}
         </div>
       </section>
+
+      <section>
+        <h4 className="text-base font-bold mb-2 text-emerald-700">8. AI Testing Taxonomy</h4>
+        <p className="mb-3 text-sm">
+          The AI Testing module ships with a comprehensive QA playbook — 33 items across 3 categories.
+          Use it to thoroughly test any AI platform, AI tool, or AI-powered software and get the
+          desired output reports. The playbook is also exposed via{" "}
+          <code className="bg-muted px-1 rounded text-xs">GET /api/marqai/module-reports</code> for
+          programmatic access.
+        </p>
+
+        <div className="space-y-3">
+          <div className="rounded-lg border p-3">
+            <div className="font-semibold text-sm mb-1">A. Testing Strategies (14 items)</div>
+            <p className="text-xs text-muted-foreground mb-2">
+              Coverage types defining WHAT to test — from functional correctness to AI-specific
+              behaviors and disaster recovery.
+            </p>
+            <div className="flex flex-wrap gap-1">
+              {[
+                "Requirement & Risk-Based",
+                "Smoke (post-deploy)",
+                "Functional (all modules)",
+                "Regression (per release)",
+                "Integration (Stripe/ZAI/SMTP)",
+                "Performance & Load",
+                "Security & Penetration",
+                "Cross-Browser & Responsive",
+                "Accessibility (WCAG 2.1 AA)",
+                "AI Model Validation",
+                "AI Prompt & Hallucination",
+                "AI Bias/Fairness",
+                "AI Search Relevance",
+                "Disaster Recovery & Backup",
+              ].map((s) => (
+                <code key={s} className="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded">{s}</code>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-lg border p-3">
+            <div className="font-semibold text-sm mb-1">B. Testing Methodologies (10 items)</div>
+            <p className="text-xs text-muted-foreground mb-2">
+              Process models defining HOW testing is organized within the team and SDLC.
+            </p>
+            <div className="flex flex-wrap gap-1">
+              {[
+                "Agile Sprint Testing",
+                "Shift-Left Testing",
+                "Manual Testing",
+                "API Testing",
+                "Automation (UI/API)",
+                "Exploratory Testing",
+                "Data Validation Testing",
+                "UAT",
+                "Production Smoke Validation",
+              ].map((s) => (
+                <code key={s} className="text-[10px] bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded">{s}</code>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-lg border p-3">
+            <div className="font-semibold text-sm mb-1">C. AI-Specific Test Scenarios (9 items)</div>
+            <p className="text-xs text-muted-foreground mb-2">
+              Concrete test scenarios targeting known AI failure modes — run against every AI feature.
+            </p>
+            <div className="flex flex-wrap gap-1">
+              {[
+                "Product recommendation relevance",
+                "Semantic search accuracy",
+                "Chatbot response correctness",
+                "Prompt injection resistance",
+                "Personalization validation",
+                "Duplicate recommendation detection",
+                "Recommendation latency",
+                "Feedback learning verification",
+                "AI fallback when model unavailable",
+              ].map((s) => (
+                <code key={s} className="text-[10px] bg-violet-50 text-violet-700 px-1.5 py-0.5 rounded">{s}</code>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <p className="mt-3 text-xs text-muted-foreground">
+          The AI Testing module has 3 tabs: <strong>Test Runner</strong> (run a test suite against any AI tool),
+          <strong> Playbook</strong> (browse all 33 items with examples + pass criteria), and
+          <strong> Module Reports</strong> (live QA status for every Marqai module — probes each AI endpoint
+          and shows functional coverage, AI integration status, applicable strategies + scenarios, and open issues).
+        </p>
+      </section>
     </div>
   );
 }

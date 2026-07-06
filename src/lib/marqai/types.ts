@@ -339,11 +339,15 @@ export interface AiToolTestReport {
     status: "pass" | "partial" | "fail";
     latencyMs: number;
     notes: string;
+    /** Which AI test scenario this case maps to (from the testing taxonomy). */
+    scenario?: string;
   }[];
   strengths: string[];
   weaknesses: string[];
   recommendations: { title: string; description: string; priority: "high" | "medium" | "low" }[];
   benchmarkComparison: { metric: string; thisTool: number; industryAvg: number; unit: string }[];
+  /** List of AI test scenarios covered by this report (from the testing taxonomy). */
+  scenariosCovered?: string[];
 }
 
 // ============================================================

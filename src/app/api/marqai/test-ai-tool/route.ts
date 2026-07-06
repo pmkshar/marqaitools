@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getZai, getDefaultModel } from "@/lib/zai";
+import { getRelevantScenarios, TESTING_STRATEGIES } from "@/lib/marqai/testing-taxonomy";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -38,7 +39,7 @@ export async function POST(req: NextRequest) {
         { role: "user", content: buildUserPrompt(body) },
       ],
       temperature: 0.4,
-      max_tokens: 3200,
+      max_tokens: 4096,
     });
 
     const raw = completion.choices?.[0]?.message?.content ?? "";
@@ -54,16 +55,36 @@ export async function POST(req: NextRequest) {
 }
 
 function systemPrompt(): string {
-  return `You are Marqai's AI QA lead. You design and run objective test cases against AI tools (chatbots, image generators, video generators, agents, RAG systems, code assistants, voice tools). For each tool you produce a detailed report card with category scores, individual test case results, strengths, weaknesses, and prioritized recommendations. Always return STRICT JSON ONLY — no prose, no code fences.`;
+  return `You are Marqai's AI QA lead. You design and run objective test cases against AI tools (chatbots, image generators, video generators, agents, RAG systems, code assistants, voice tools). For each tool you produce a detailed report card with category scores, individual test case results, strengths, weaknesses, and prioritized recommendations. Your test design follows Marqai's comprehensive testing taxonomy covering Testing Strategies, Testing Methodologies, and AI-Specific Test Scenarios. Always return STRICT JSON ONLY — no prose, no code fences.`;
 }
 
 function buildUserPrompt(b: Body): string {
+  // Pull the AI-specific scenarios relevant to this tool type
+  const relevantScenarios = getRelevantScenarios(b.toolType);
+  const scenariosSection = relevantScenarios
+    .map((s, i) => `${i + 1}. ${s.name} — ${s.summary}\n   Example: ${s.examples[0]}\n   Pass criteria: ${s.passCriteria}`)
+    .join("\n\n");
+
+  // Pull the top testing strategies that apply to any AI tool
+  const strategiesSection = TESTING_STRATEGIES.items
+    .filter((s) =>
+      ["ai-model-validation", "ai-prompt-hallucination", "ai-bias-fairness", "security-pen", "performance-load"].includes(s.id),
+    )
+    .map((s, i) => `${i + 1}. ${s.name} — ${s.summary}`)
+    .join("\n");
+
   return `Produce a detailed AI tool test report for:
 - toolName: "${b.toolName}"
 - toolUrl: "${b.toolUrl}"
 - toolType: "${b.toolType}"
 - focusAreas: ${b.focusAreas || "all"}
 - customTestCases (consider these too): ${b.customTestCases || "none"}
+
+Your test plan MUST cover these AI-specific test scenarios (from Marqai's testing taxonomy):
+${scenariosSection}
+
+Your test plan MUST also reflect these testing strategies:
+${strategiesSection}
 
 Return JSON with EXACTLY this shape:
 {
@@ -74,19 +95,21 @@ Return JSON with EXACTLY this shape:
   "grade": "A+"|"A"|"B"|"C"|"D"|"F",
   "summary": string (3-5 sentences),
   "categories": [{ "category": string, "score": number, "maxScore": 100, "findings": string[] }],
-  "testCases": [{ "id": "tc1", "name": string, "prompt": string, "expectedBehavior": string, "actualBehavior": string, "status": "pass"|"partial"|"fail", "latencyMs": number, "notes": string }],
+  "testCases": [{ "id": "tc1", "name": string, "prompt": string, "expectedBehavior": string, "actualBehavior": string, "status": "pass"|"partial"|"fail", "latencyMs": number, "notes": string, "scenario": string }],
   "strengths": string[],
   "weaknesses": string[],
   "recommendations": [{ "title": string, "description": string, "priority": "high"|"medium"|"low" }],
-  "benchmarkComparison": [{ "metric": string, "thisTool": number, "industryAvg": number, "unit": string }]
+  "benchmarkComparison": [{ "metric": string, "thisTool": number, "industryAvg": number, "unit": string }],
+  "scenariosCovered": string[]
 }
 
 Requirements:
 - 5-7 categories relevant to the tool type (e.g. Accuracy, Latency, Safety, Reasoning, Cost, UX, Context handling, Hallucination rate, Output diversity).
-- 6-10 testCases with realistic prompts and outcomes.
+- 8-12 testCases with realistic prompts and outcomes. Each test case MUST map to one of the AI-specific scenarios above (set "scenario" to the scenario name).
 - 4-6 strengths, 4-6 weaknesses.
 - 4-6 recommendations.
 - 4-6 benchmarkComparison rows.
+- "scenariosCovered" must list all the AI-specific scenarios you actually tested (by name).
 - Make scores and metrics internally consistent. Be critical but fair.`;
 }
 
