@@ -17,6 +17,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { ShoppingCart } from "lucide-react";
 import { ScoreRing } from "../score-ring";
 import { LoadingState, EmptyState } from "../loading-states";
@@ -41,6 +49,9 @@ import {
   BookOpen,
   ClipboardList,
   RefreshCw,
+  FileText,
+  FileJson,
+  ChevronDown,
 } from "lucide-react";
 import type { AiToolTestReport } from "@/lib/marqai/types";
 import { formatDateTime, scoreColor, uid } from "@/lib/marqai/utils";
@@ -863,9 +874,7 @@ function InlineReport({
               {retesting ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5 mr-1.5" />}
               Re-test this tool
             </Button>
-            <Button variant="outline" size="sm" onClick={() => window.print()}>
-              <Download className="h-3.5 w-3.5 mr-1.5" /> Export
-            </Button>
+            <DownloadMenu report={report} />
             <Button variant="ghost" size="sm" onClick={onClose}>
               Close
             </Button>
@@ -1094,17 +1103,354 @@ function InlineReport({
           </CardContent>
         </Card>
 
-        <div className="flex items-center justify-between pt-2 border-t border-border">
-          <p className="text-xs text-muted-foreground">
-            Report persisted in your session history. Use “Re-test this tool” to re-run this exact configuration anytime.
+        <div className="flex items-center justify-between pt-2 border-t border-border gap-3 flex-wrap">
+          <p className="text-xs text-muted-foreground flex-1 min-w-[200px]">
+            Report persisted in your session history. Use “Re-test this tool” to re-run this exact configuration anytime,
+            or “Download” to export a shareable HTML / JSON / PDF copy for third parties.
           </p>
-          <Button variant="ghost" size="sm" onClick={onClose}>
-            Close report
-          </Button>
+          <div className="flex items-center gap-2 shrink-0">
+            <DownloadMenu report={report} />
+            <Button variant="ghost" size="sm" onClick={onClose}>
+              Close report
+            </Button>
+          </div>
         </div>
       </CardContent>
     </Card>
   );
+}
+
+// ============================================================
+// DOWNLOAD MENU — export the test report as a shareable file
+// ============================================================
+function DownloadMenu({ report }: { report: AiToolTestReport }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="sm">
+          <Download className="h-3.5 w-3.5 mr-1.5" /> Download
+          <ChevronDown className="h-3 w-3 ml-1 opacity-70" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuLabel className="text-xs text-muted-foreground">
+          Share with third parties
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={() => downloadHtmlReport(report)} className="cursor-pointer">
+          <FileText className="h-4 w-4 mr-2" />
+          <div className="flex flex-col">
+            <span className="text-sm">HTML report</span>
+            <span className="text-[10px] text-muted-foreground">Self-contained, opens in any browser</span>
+          </div>
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => downloadJsonReport(report)} className="cursor-pointer">
+          <FileJson className="h-4 w-4 mr-2" />
+          <div className="flex flex-col">
+            <span className="text-sm">JSON data</span>
+            <span className="text-[10px] text-muted-foreground">Raw structured report for developers</span>
+          </div>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={() => window.print()} className="cursor-pointer">
+          <Download className="h-4 w-4 mr-2" />
+          <div className="flex flex-col">
+            <span className="text-sm">Print / Save as PDF</span>
+            <span className="text-[10px] text-muted-foreground">Use browser print dialog</span>
+          </div>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function triggerBrowserDownload(filename: string, mime: string, content: string) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function safeFilename(toolName: string): string {
+  return (
+    toolName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 50) || "ai-tool"
+  );
+}
+
+function downloadJsonReport(report: AiToolTestReport) {
+  const filename = `${safeFilename(report.toolName)}-test-report-${new Date(report.testedAt).toISOString().slice(0, 10)}.json`;
+  const json = JSON.stringify(report, null, 2);
+  triggerBrowserDownload(filename, "application/json;charset=utf-8", json);
+  toast.success("JSON report downloaded");
+}
+
+function downloadHtmlReport(report: AiToolTestReport) {
+  const filename = `${safeFilename(report.toolName)}-test-report-${new Date(report.testedAt).toISOString().slice(0, 10)}.html`;
+  const html = buildHtmlReport(report);
+  triggerBrowserDownload(filename, "text/html;charset=utf-8", html);
+  toast.success("HTML report downloaded");
+}
+
+function esc(s: string): string {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function scoreColorHex(score: number): string {
+  if (score >= 85) return "#10b981";
+  if (score >= 75) return "#84cc16";
+  if (score >= 65) return "#f59e0b";
+  if (score >= 55) return "#f97316";
+  return "#ef4444";
+}
+
+function buildHtmlReport(r: AiToolTestReport): string {
+  const passCount = r.testCases.filter((t) => t.status === "pass").length;
+  const partialCount = r.testCases.filter((t) => t.status === "partial").length;
+  const failCount = r.testCases.filter((t) => t.status === "fail").length;
+  const generatedAt = new Date().toISOString();
+  const overallColor = scoreColorHex(r.overallScore);
+
+  const categoriesHtml = r.categories
+    .map(
+      (c) => `
+      <div class="cat-row">
+        <div class="cat-head">
+          <span>${esc(c.category)}</span>
+          <span class="cat-score" style="color:${scoreColorHex(c.score)}">${c.score}/${c.maxScore}</span>
+        </div>
+        <div class="bar"><div class="bar-fill" style="width:${c.score}%;background:${scoreColorHex(c.score)}"></div></div>
+        ${
+          c.findings && c.findings.length
+            ? `<ul class="findings">${c.findings.map((f) => `<li>${esc(f)}</li>`).join("")}</ul>`
+            : ""
+        }
+      </div>`,
+    )
+    .join("");
+
+  const testCasesHtml = r.testCases
+    .map((tc) => {
+      const color = tc.status === "pass" ? "#10b981" : tc.status === "partial" ? "#f59e0b" : "#ef4444";
+      const icon = tc.status === "pass" ? "✓" : tc.status === "partial" ? "▲" : "✗";
+      return `
+      <div class="tc">
+        <div class="tc-head">
+          <div class="tc-name">
+            <span class="tc-icon" style="color:${color}">${icon}</span>
+            <strong>${esc(tc.name)}</strong>
+            ${tc.scenario ? `<span class="badge">${esc(tc.scenario)}</span>` : ""}
+          </div>
+          <div class="tc-meta">
+            <span class="badge">${tc.latencyMs}ms</span>
+            <span class="badge ${tc.status}">${tc.status}</span>
+          </div>
+        </div>
+        <div class="tc-body">
+          <div><strong>Prompt:</strong> ${esc(tc.prompt)}</div>
+          <div><strong>Expected:</strong> ${esc(tc.expectedBehavior)}</div>
+          <div><strong>Actual:</strong> ${esc(tc.actualBehavior)}</div>
+          ${tc.notes ? `<div class="tc-notes">${esc(tc.notes)}</div>` : ""}
+        </div>
+      </div>`;
+    })
+    .join("");
+
+  const strengthsHtml = r.strengths.map((s) => `<li><span class="plus">+</span> ${esc(s)}</li>`).join("");
+  const weaknessesHtml = r.weaknesses.map((s) => `<li><span class="minus">−</span> ${esc(s)}</li>`).join("");
+  const recsHtml = r.recommendations
+    .map(
+      (rec) => `
+      <div class="rec">
+        <span class="badge ${rec.priority}">${rec.priority}</span>
+        <div>
+          <div class="rec-title">${esc(rec.title)}</div>
+          <div class="rec-desc">${esc(rec.description)}</div>
+        </div>
+      </div>`,
+    )
+    .join("");
+
+  const benchRows = r.benchmarkComparison
+    .map(
+      (b) => `
+      <tr>
+        <td>${esc(b.metric)}</td>
+        <td class="num">${b.thisTool.toLocaleString()} ${esc(b.unit || "")}</td>
+        <td class="num">${b.industryAvg.toLocaleString()} ${esc(b.unit || "")}</td>
+      </tr>`,
+    )
+    .join("");
+
+  const scenariosCovered =
+    r.scenariosCovered && r.scenariosCovered.length
+      ? `<div class="scenarios"><strong>AI scenarios covered:</strong> ${r.scenariosCovered.map((s) => `<span class="badge">${esc(s)}</span>`).join(" ")}</div>`
+      : "";
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>${esc(r.toolName)} — AI Tool Test Report</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    margin: 0; padding: 32px; background: #f8fafc; color: #0f172a; line-height: 1.55;
+  }
+  .container { max-width: 960px; margin: 0 auto; background: #fff; border-radius: 12px; box-shadow: 0 4px 16px rgba(15,23,42,0.08); overflow: hidden; }
+  .header { background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #10b981 100%); color: #fff; padding: 28px 32px; }
+  .header h1 { margin: 0 0 8px; font-size: 26px; font-weight: 700; }
+  .header .url { font-size: 13px; opacity: 0.9; word-break: break-all; }
+  .header .meta { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .header .meta .chip { background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 999px; font-size: 11px; }
+  .section { padding: 24px 32px; border-top: 1px solid #e2e8f0; }
+  .section h2 { margin: 0 0 16px; font-size: 16px; font-weight: 600; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; }
+  .summary-row { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; align-items: center; }
+  .summary-text { font-size: 14px; color: #334155; }
+  .score-card { background: #f8fafc; border-radius: 12px; padding: 24px; text-align: center; }
+  .score-num { font-size: 48px; font-weight: 800; color: ${overallColor}; line-height: 1; }
+  .score-grade { margin-top: 8px; font-size: 20px; font-weight: 700; color: ${overallColor}; }
+  .score-label { margin-top: 4px; font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
+  .tc-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
+  .stat { padding: 16px; border-radius: 8px; background: #f8fafc; display: flex; align-items: center; gap: 12px; }
+  .stat-num { font-size: 24px; font-weight: 700; }
+  .stat-label { font-size: 11px; color: #64748b; text-transform: uppercase; }
+  .cat-row { margin-bottom: 14px; }
+  .cat-head { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px; }
+  .cat-score { font-weight: 600; }
+  .bar { height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 3px; }
+  .findings { margin: 6px 0 0; padding-left: 18px; font-size: 12px; color: #64748b; }
+  .findings li { margin-bottom: 2px; }
+  .tc { padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 8px; }
+  .tc-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; gap: 8px; flex-wrap: wrap; }
+  .tc-name { display: flex; align-items: center; gap: 8px; }
+  .tc-icon { font-weight: 700; font-size: 16px; }
+  .tc-meta { display: flex; gap: 6px; }
+  .tc-body { font-size: 12px; color: #64748b; padding-left: 24px; }
+  .tc-body div { margin-bottom: 2px; }
+  .tc-body strong { color: #334155; }
+  .tc-notes { font-style: italic; margin-top: 4px; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 600; background: #f1f5f9; color: #475569; text-transform: capitalize; }
+  .badge.pass { background: #d1fae5; color: #065f46; }
+  .badge.partial { background: #fef3c7; color: #92400e; }
+  .badge.fail { background: #fee2e2; color: #991b1b; }
+  .badge.high { background: #fee2e2; color: #991b1b; }
+  .badge.medium { background: #dbeafe; color: #1e40af; }
+  .badge.low { background: #f1f5f9; color: #475569; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .list-card { background: #f8fafc; border-radius: 8px; padding: 16px; }
+  .list-card h3 { margin: 0 0 12px; font-size: 14px; }
+  .list-card ul { margin: 0; padding-left: 20px; }
+  .list-card li { margin-bottom: 6px; font-size: 13px; }
+  .plus { color: #10b981; font-weight: 700; }
+  .minus { color: #ef4444; font-weight: 700; }
+  .rec { display: flex; gap: 12px; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 8px; }
+  .rec-title { font-size: 13px; font-weight: 600; }
+  .rec-desc { font-size: 12px; color: #64748b; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #e2e8f0; }
+  th { background: #f8fafc; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .scenarios { margin-top: 8px; font-size: 12px; }
+  .scenarios .badge { margin: 2px; }
+  .footer { padding: 16px 32px; background: #f8fafc; border-top: 1px solid #e2e8f0; font-size: 11px; color: #94a3b8; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+  @media print {
+    body { padding: 0; background: #fff; }
+    .container { box-shadow: none; border-radius: 0; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>${esc(r.toolName)} — AI Tool Test Report</h1>
+    <div class="url">${esc(r.toolUrl)}</div>
+    <div class="meta">
+      <span class="chip">Type: ${esc(r.toolType.replace("-", " "))}</span>
+      <span class="chip">Grade: ${esc(r.grade)}</span>
+      <span class="chip">Overall: ${r.overallScore}/100</span>
+      <span class="chip">Tested: ${esc(formatDateTime(r.testedAt))}</span>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Summary</h2>
+    <div class="summary-row">
+      <div class="summary-text">${esc(r.summary)}</div>
+      <div class="score-card">
+        <div class="score-num">${r.overallScore}</div>
+        <div class="score-grade">Grade ${esc(r.grade)}</div>
+        <div class="score-label">Overall Score</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Test Case Results</h2>
+    <div class="tc-stats">
+      <div class="stat"><div><div class="stat-num" style="color:#10b981">${passCount}</div><div class="stat-label">Passed</div></div></div>
+      <div class="stat"><div><div class="stat-num" style="color:#f59e0b">${partialCount}</div><div class="stat-label">Partial</div></div></div>
+      <div class="stat"><div><div class="stat-num" style="color:#ef4444">${failCount}</div><div class="stat-label">Failed</div></div></div>
+    </div>
+    ${testCasesHtml}
+    ${scenariosCovered}
+  </div>
+
+  <div class="section">
+    <h2>Category Scores</h2>
+    ${categoriesHtml}
+  </div>
+
+  <div class="section">
+    <h2>Benchmark Comparison</h2>
+    <table>
+      <thead><tr><th>Metric</th><th style="text-align:right">${esc(r.toolName)}</th><th style="text-align:right">Industry Avg</th></tr></thead>
+      <tbody>${benchRows}</tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>Strengths &amp; Weaknesses</h2>
+    <div class="grid-2">
+      <div class="list-card">
+        <h3 style="color:#10b981">Strengths</h3>
+        <ul>${strengthsHtml}</ul>
+      </div>
+      <div class="list-card">
+        <h3 style="color:#ef4444">Weaknesses</h3>
+        <ul>${weaknessesHtml}</ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Recommendations</h2>
+    ${recsHtml}
+  </div>
+
+  <div class="footer">
+    <span>Generated by Marqai AI Tool Testing — https://marqaitools.vercel.app</span>
+    <span>Report ID: ${esc(r.id)} · Exported: ${esc(formatDateTime(generatedAt))}</span>
+  </div>
+</div>
+</body>
+</html>`;
 }
 
 function CoverageRow({ icon: Icon, title, desc }: { icon: React.ComponentType<{ className?: string }>; title: string; desc: string }) {
