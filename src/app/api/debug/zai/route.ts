@@ -7,7 +7,7 @@
 // can see exactly what shape it returns — useful for diagnosing cases
 // where the call succeeds but content extraction fails.
 import { NextResponse } from "next/server";
-import { getZai, getZaiDiagnostics, resetZaiCache } from "@/lib/zai";
+import { getZai, getZaiDiagnostics, resetZaiCache, getDefaultModel } from "@/lib/zai";
 import { extractChatContent } from "@/lib/zai-response";
 
 export const runtime = "nodejs";
@@ -40,6 +40,7 @@ export async function GET() {
   try {
     const zai = await getZai();
     const raw = await zai.chat.completions.create({
+      model: getDefaultModel(),
       messages: [
         { role: "system", content: "You are a connectivity-test bot. Reply with exactly: PONG" },
         { role: "user", content: "ping" },
@@ -64,13 +65,22 @@ export async function GET() {
     };
     result.ok = !extracted.error && extracted.content.trim().length > 0;
     if (!result.ok) {
+      const errMsg = extracted.error ?? "Content extracted but empty";
+      const isSparse500 =
+        extracted.shape === "error-envelope" &&
+        (errMsg.includes('"code":"500"') || errMsg.includes("'code':'500'") || /code.*500/i.test(errMsg));
       result.error = {
-        kind: "extraction-failed",
-        message: extracted.error ?? "Content extracted but empty",
-        hint:
-          "The API call succeeded (HTTP 200) but the response shape isn't recognized. " +
-          "Check rawResponsePreview and rawResponseKeys to see what the API actually returned. " +
-          "If the shape is new, update src/lib/zai-response.ts to handle it.",
+        kind: isSparse500 ? "sparse-500-envelope" : "extraction-failed",
+        message: errMsg,
+        hint: isSparse500
+          ? "Z.AI returned {\"error\":{\"code\":\"500\"}}. This is Z.AI's way of saying " +
+            "the request body was malformed — most commonly a MISSING or INVALID 'model' " +
+            "parameter. Set ZAI_MODEL to a valid value (glm-4, glm-4-flash, glm-4-air, " +
+            "glm-4-plus). If the key has no access to the requested model, try glm-4-flash " +
+            "first (free tier)."
+          : "The API call succeeded (HTTP 200) but the response shape isn't recognized. " +
+            "Check rawResponsePreview and rawResponseKeys to see what the API actually returned. " +
+            "If the shape is new, update src/lib/zai-response.ts to handle it.",
       };
     }
   } catch (e: any) {
@@ -88,6 +98,14 @@ export async function GET() {
 
 function classifyError(msg: string): string {
   const m = msg.toLowerCase();
+  if (m.includes('"code":"500"') || m.includes("'code':'500'")) {
+    return "Z.AI returned a sparse {\"error\":{\"code\":\"500\"}} envelope. " +
+      "This is Z.AI's way of saying the request body was malformed — most " +
+      "commonly a MISSING or INVALID 'model' parameter. The fix is to set " +
+      "ZAI_MODEL to a valid value (e.g. glm-4, glm-4-flash, glm-4-air, " +
+      "glm-4-plus). It can also indicate the key has no access to the " +
+      "requested model — try glm-4-flash first (free tier).";
+  }
   if (m.includes("401") || m.includes("unauthorized")) {
     return "API key is invalid, expired, or wrong for this base URL. " +
       "Double-check the key at https://z.ai → API Keys. " +

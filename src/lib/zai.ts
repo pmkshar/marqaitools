@@ -23,6 +23,39 @@ import ZAI from "z-ai-web-dev-sdk";
 // Override with ZAI_BASE_URL env var if you use a different deployment.
 const DEFAULT_BASE_URL = "https://api.z.ai/api/paas/v4";
 
+// Default model for chat completions. The Z.AI SDK does NOT auto-fill a
+// model — if you omit it, api.z.ai returns a sparse
+// {"error":{"code":"500"}} envelope with HTTP 200 (a known Z.AI quirk).
+// Override with ZAI_MODEL env var. Common values on api.z.ai/api/paas/v4:
+//   glm-4              — standard, good quality, moderate cost
+//   glm-4-flash        — fast + free tier, lower quality
+//   glm-4-air          — fast + cheap
+//   glm-4-plus         — better quality
+//   glm-4-long         — long context
+//   glm-4.5            — newest (supports thinking mode)
+const DEFAULT_MODEL = "glm-4";
+
+// Default model for image generation. Z.AI image API also requires an
+// explicit model. Override with ZAI_IMAGE_MODEL env var.
+// Common values: cogview-3-plus (premium), cogview-3-flash (free tier).
+const DEFAULT_IMAGE_MODEL = "cogview-3-plus";
+
+/**
+ * Returns the model name to pass to chat.completions.create().
+ * Reads from ZAI_MODEL env var first, falls back to DEFAULT_MODEL.
+ */
+export function getDefaultModel(): string {
+  return process.env.ZAI_MODEL ?? DEFAULT_MODEL;
+}
+
+/**
+ * Returns the model name to pass to images.generations.create().
+ * Reads from ZAI_IMAGE_MODEL env var first, falls back to DEFAULT_IMAGE_MODEL.
+ */
+export function getDefaultImageModel(): string {
+  return process.env.ZAI_IMAGE_MODEL ?? DEFAULT_IMAGE_MODEL;
+}
+
 // The ZAI class declares its constructor as `private` (TypeScript-only
 // visibility — JS does not enforce it at runtime). We use an `any` cast
 // to construct it directly from env vars, bypassing the file-based
@@ -109,18 +142,29 @@ export async function getZai(): Promise<ZaiInstance> {
 export function getZaiDiagnostics() {
   const envKey = process.env.ZAI_API_KEY ?? "";
   const envBaseUrl = process.env.ZAI_BASE_URL ?? DEFAULT_BASE_URL;
+  const model = getDefaultModel();
+  const imageModel = getDefaultImageModel();
   return {
     source: envKey ? "env-var" : "file-loader",
     baseUrl: envBaseUrl,
+    model,
+    imageModel,
     keyMasked: maskKey(envKey),
     keyLength: envKey.length,
     hasKey: Boolean(envKey),
     defaultBaseUrl: DEFAULT_BASE_URL,
+    defaultModel: DEFAULT_MODEL,
+    defaultImageModel: DEFAULT_IMAGE_MODEL,
     usingCustomBaseUrl: envBaseUrl !== DEFAULT_BASE_URL,
+    usingCustomModel: model !== DEFAULT_MODEL,
+    usingCustomImageModel: imageModel !== DEFAULT_IMAGE_MODEL,
     note:
       "If hasKey=false on Vercel Production, the env var is missing or " +
       "not enabled for the Production environment. If hasKey=true but " +
-      "requests fail with 401, the key value is wrong or expired.",
+      "requests fail with 401, the key value is wrong or expired. If " +
+      "the API returns {\"error\":{\"code\":\"500\"}}, the model name " +
+      "is wrong or not available on your Z.AI plan — set ZAI_MODEL to " +
+      "a valid value (e.g. glm-4, glm-4-flash, glm-4-air, glm-4-plus).",
   };
 }
 

@@ -3,7 +3,7 @@
 //   - mode "ai"      → uses ZAI image generation, returns { url }
 //   - mode "template" → generates an inline SVG wordmark/monogram, returns { svg }
 import { NextRequest, NextResponse } from "next/server";
-import { getZai } from "@/lib/zai";
+import { getZai, getDefaultImageModel } from "@/lib/zai";
 import type { LogoStyle } from "@/lib/marqai/types";
 
 export const runtime = "nodejs";
@@ -35,6 +35,7 @@ export async function POST(req: NextRequest) {
     const prompt = buildLogoPrompt(body);
     const zai = await getZai();
     const result = await zai.images.generations.create({
+      model: getDefaultImageModel(),
       prompt,
       size: "1024x1024",
     });

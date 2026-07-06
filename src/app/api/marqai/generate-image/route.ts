@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getZai } from "@/lib/zai";
+import { getZai, getDefaultImageModel } from "@/lib/zai";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -18,6 +18,7 @@ export async function POST(req: NextRequest) {
 
     const zai = await getZai();
     const result = await zai.images.generations.create({
+      model: getDefaultImageModel(),
       prompt,
       size: size as any,
     });

@@ -13,7 +13,7 @@
 // is unavailable, so the UI never breaks — the `source` field tells
 // the client whether to show a "demo data" banner.
 import { NextRequest, NextResponse } from "next/server";
-import { getZai } from "@/lib/zai";
+import { getZai, getDefaultModel } from "@/lib/zai";
 import { extractLeads } from "@/lib/json-utils";
 import { extractChatContent } from "@/lib/zai-response";
 import type { Lead } from "@/lib/marqai/types";
@@ -69,6 +69,7 @@ Vary industries and sizes. Use real-sounding (not generic) company names. Do NOT
     try {
       const zai = await getZai();
       const completion = await zai.chat.completions.create({
+        model: getDefaultModel(),
         messages: [
           { role: "system", content: sys },
           { role: "user", content: user },
@@ -95,6 +96,7 @@ Vary industries and sizes. Use real-sounding (not generic) company names. Do NOT
       try {
         const zai = await getZai();
         const retry = await zai.chat.completions.create({
+          model: getDefaultModel(),
           messages: [
             {
               role: "system",
@@ -145,8 +147,12 @@ Vary industries and sizes. Use real-sounding (not generic) company names. Do NOT
     // If AI failed entirely, return mock leads so the UI works.
     if (leads.length === 0) {
       const mockLeads = generateMockLeads(body, count);
+      const isSparse500 =
+        aiError && (aiError.includes('"code":"500"') || /code.*500/i.test(aiError));
       const diag = aiError
-        ? `AI error: ${aiError}`
+        ? isSparse500
+          ? `Z.AI returned {"error":{"code":"500"}} — this means the 'model' parameter is missing or invalid. The app now sends model=glm-4 by default. If you still see this, set ZAI_MODEL env var to a valid model name (glm-4, glm-4-flash, glm-4-air, glm-4-plus). Original error: ${aiError}`
+          : `AI error: ${aiError}`
         : `AI returned no parseable leads (response shape=${diagnosticShape || "unknown"}, content length=${aiRaw.length}). Preview: ${aiRaw.slice(0, 200) || "(empty)"}`;
       return NextResponse.json({
         ok: true,
@@ -158,8 +164,13 @@ Vary industries and sizes. Use real-sounding (not generic) company names. Do NOT
           contentLength: aiRaw.length,
           contentPreview: aiRaw.slice(0, 300),
           error: aiError,
+          isSparse500,
+          modelUsed: process.env.ZAI_MODEL ?? "glm-4",
           endpoint: process.env.ZAI_BASE_URL ?? "https://api.z.ai/api/paas/v4",
           hasKey: Boolean(process.env.ZAI_API_KEY),
+          hint: isSparse500
+            ? "Set ZAI_MODEL env var on Vercel to a valid model (e.g. glm-4-flash for the free tier, or glm-4-plus for higher quality). Then Redeploy."
+            : "Open /api/debug/zai to run a full connectivity test.",
         },
       });
     }

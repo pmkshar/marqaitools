@@ -6,7 +6,7 @@
 // HTML document the client can preview / download. Falls back to a
 // template-generated landing page if the AI is unavailable.
 import { NextRequest, NextResponse } from "next/server";
-import { getZai } from "@/lib/zai";
+import { getZai, getDefaultModel } from "@/lib/zai";
 import { extractJson } from "@/lib/json-utils";
 import type { WebsiteSection } from "@/lib/marqai/types";
 
@@ -50,6 +50,7 @@ Return strict JSON.`;
 
     const zai = await getZai();
     const completion = await zai.chat.completions.create({
+      model: getDefaultModel(),
       messages: [
         { role: "system", content: sys },
         { role: "user", content: user },

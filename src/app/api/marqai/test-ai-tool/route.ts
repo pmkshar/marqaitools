@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getZai } from "@/lib/zai";
+import { getZai, getDefaultModel } from "@/lib/zai";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -32,6 +32,7 @@ export async function POST(req: NextRequest) {
 
     const zai = await getZai();
     const completion = await zai.chat.completions.create({
+      model: getDefaultModel(),
       messages: [
         { role: "system", content: systemPrompt() },
         { role: "user", content: buildUserPrompt(body) },
