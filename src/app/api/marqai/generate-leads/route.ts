@@ -8,7 +8,7 @@
 // using common patterns (first.last@domain) and should always be
 // verified before sending.
 import { NextRequest, NextResponse } from "next/server";
-import ZAI from "z-ai-web-dev-sdk";
+import { getZai } from "@/lib/zai";
 import type { Lead } from "@/lib/marqai/types";
 
 export const runtime = "nodejs";
@@ -52,7 +52,7 @@ For each lead, return a JSON object with EXACTLY these keys:
 
 Vary industries and sizes. Use real-sounding (not generic) company names. Do NOT use Fortune-100 companies — pick mid-market to upper-SMB targets. Return exactly ${count} leads. JSON only.`;
 
-    const zai = await ZAI.create();
+    const zai = await getZai();
     const completion = await zai.chat.completions.create({
       messages: [
         { role: "system", content: sys },

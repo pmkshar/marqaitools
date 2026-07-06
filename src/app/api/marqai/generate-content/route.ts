@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import ZAI from "z-ai-web-dev-sdk";
+import { getZai } from "@/lib/zai";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
     const sys = `You are Marqai's senior copywriter. Produce the requested marketing copy. Always return JSON with the key "output" containing the result string (or a stringified list where appropriate). No prose, no code fences.`;
     const user = buildPrompt(body);
 
-    const zai = await ZAI.create();
+    const zai = await getZai();
     const completion = await zai.chat.completions.create({
       messages: [
         { role: "system", content: sys },

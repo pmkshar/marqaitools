@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import ZAI from "z-ai-web-dev-sdk";
+import { getZai } from "@/lib/zai";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const zai = await ZAI.create();
+    const zai = await getZai();
     const completion = await zai.chat.completions.create({
       messages: [
         { role: "system", content: systemPrompt() },

@@ -5,7 +5,7 @@
 // Uses ZAI to draft copy + section HTML, then assembles a self-contained
 // HTML document the client can preview / download.
 import { NextRequest, NextResponse } from "next/server";
-import ZAI from "z-ai-web-dev-sdk";
+import { getZai } from "@/lib/zai";
 import type { WebsiteSection } from "@/lib/marqai/types";
 
 export const runtime = "nodejs";
@@ -46,7 +46,7 @@ Generate 6 sections:
 
 Return strict JSON.`;
 
-    const zai = await ZAI.create();
+    const zai = await getZai();
     const completion = await zai.chat.completions.create({
       messages: [
         { role: "system", content: sys },
