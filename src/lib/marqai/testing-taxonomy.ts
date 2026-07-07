@@ -718,12 +718,1244 @@ export const AI_TEST_SCENARIOS: TestingCategory = {
 };
 
 // ============================================================
+// 4. NON-AI TESTING STRATEGIES — coverage types for non-AI products
+// ============================================================
+// Comprehensive coverage types that apply to ANY non-AI software product:
+// traditional web apps, mobile apps, desktop apps, APIs, e-commerce sites,
+// ERP/CRM systems, billing platforms, games, IoT firmware, etc.
+// Use this catalog when the product under test has no AI features and you
+// still need a rigorous, audit-ready QA playbook.
+export const NON_AI_TESTING_STRATEGIES: TestingCategory = {
+  id: "non-ai-strategies",
+  name: "Non-AI Testing Strategies",
+  description:
+    "Coverage types that define WHAT to test across any non-AI software product — " +
+    "web, mobile, desktop, API, e-commerce, ERP, CRM, billing, games, IoT. " +
+    "Each strategy targets a specific risk surface; together they form a complete " +
+    "audit-ready coverage matrix from functional correctness through regulatory " +
+    "compliance and disaster recovery. Use these alongside (or instead of) the " +
+    "AI-specific strategies above when the product under test is not AI-powered.",
+  items: [
+    {
+      id: "na-functional",
+      name: "Functional Testing",
+      summary: "Verify each feature behaves per spec across happy path + edge cases.",
+      description:
+        "Module-by-module verification that every documented user flow works end-to-end. " +
+        "Each feature is decomposed into test cases covering: happy path, validation " +
+        "errors, permission denials, boundary values, and negative inputs. For non-AI " +
+        "products this is the backbone of the QA plan — typically 60-70% of total test " +
+        "effort. Traceability matrix maps each requirement to at least one test case.",
+      examples: [
+        "Login: valid creds → dashboard; invalid creds → error message; empty fields → client validation",
+        "Cart: add 1 item → subtotal updates; add 0 items → blocked; add 999 items → stock check fires",
+        "Settings: change email → verification email sent; same email → no-op; invalid format → 400",
+      ],
+      passCriteria:
+        "100% of documented functional requirements have at least one passing test case. " +
+        "Traceability matrix has zero orphan requirements.",
+      when: "per-sprint",
+    },
+    {
+      id: "na-unit",
+      name: "Unit Testing",
+      summary: "Isolated tests of individual functions, classes, and components.",
+      description:
+        "Tests the smallest unit of code in isolation — a single function, method, or " +
+        "component — with all dependencies mocked. Unit tests run in milliseconds, execute " +
+        "on every commit, and are the first line of defense against regressions. Target " +
+        "80%+ line coverage on business logic; UI components get snapshot + interaction " +
+        "tests. Each unit test follows AAA: Arrange, Act, Assert.",
+      examples: [
+        "formatCurrency(1234.5, 'USD') → '$1,234.50'",
+        "validateEmail('foo@bar') → false; validateEmail('foo@bar.com') → true",
+        "CartCalculator with [10, 20, 30] items + 10% discount → 54.0",
+      ],
+      passCriteria:
+        "≥ 80% line coverage on business-logic modules. All unit tests pass in CI on " +
+        "every PR. Coverage delta reported; decreases require reviewer sign-off.",
+      when: "continuous",
+    },
+    {
+      id: "na-integration",
+      name: "Integration Testing",
+      summary: "Verify modules work together at their seams (DB, API, third-party).",
+      description:
+        "Tests that exercise multiple modules together — e.g. service + database, " +
+        "frontend + backend API, billing + payment gateway. Unlike unit tests, " +
+        "integration tests use real (or near-real) dependencies. Each external seam " +
+        "(database, payment gateway, SMTP, S3, OAuth provider) gets its own contract " +
+        "test that verifies the integration still works. Mocked in CI, real calls in " +
+        "staging.",
+      examples: [
+        "POST /api/orders with valid body → 200 + row in orders table",
+        "Stripe webhook → subscription.activated event → user.plan upgrades",
+        "OAuth: Google callback → user created/updated → session cookie set",
+      ],
+      passCriteria:
+        "All integration seams have at least one passing test in staging. CI uses " +
+        "mocked third parties; weekly job exercises real endpoints.",
+      when: "per-release",
+    },
+    {
+      id: "na-system",
+      name: "System Testing",
+      summary: "End-to-end tests of the complete integrated system against requirements.",
+      description:
+        "Black-box tests of the fully integrated system. Verifies that the system as a " +
+        "whole meets its functional + non-functional requirements. Includes both happy " +
+        "paths and end-to-end workflows that span multiple modules. Often the gating " +
+        "step before UAT — if system tests fail, the build is not released to users.",
+      examples: [
+        "Register → verify email → login → set up profile → first purchase → order confirmation",
+        "Admin creates role → assigns permissions → user with role can/cannot access modules",
+        "End-of-day batch job: process 1000 orders → generate invoice PDFs → upload to S3",
+      ],
+      passCriteria:
+        "100% of system test scenarios pass. Any failure blocks release. Average " +
+        "system test runtime < 30 min via parallelization.",
+      when: "per-release",
+    },
+    {
+      id: "na-e2e",
+      name: "End-to-End (E2E) Testing",
+      summary: "Browser-driven tests simulating real user journeys across the stack.",
+      description:
+        "Drives a real browser (Playwright, Cypress, Selenium) through the full stack — " +
+        "frontend → API → database → external services. E2E tests are slow but high " +
+        "signal: they catch integration breakages that unit/integration tests miss. " +
+        "Keep the suite small (10-20 critical journeys) and run on every merge to main. " +
+        "Smoke subset runs on every PR.",
+      examples: [
+        "Login → browse catalog → add to cart → checkout → order confirmation page",
+        "Login as admin → create user → assign role → log out → log in as new user",
+        "Password reset: enter email → click email link → enter new password → login",
+      ],
+      passCriteria:
+        "All E2E critical journeys pass on every merge to main. Total E2E runtime " +
+        "< 15 min. Flaky tests quarantined within 24h.",
+      when: "continuous",
+    },
+    {
+      id: "na-regression",
+      name: "Regression Testing",
+      summary: "Re-run prior tests to ensure new code didn't break existing behavior.",
+      description:
+        "Before any release ships, the complete functional + integration suite from " +
+        "the previous release is re-run. New features get new tests added to the suite " +
+        "so the regression net grows over time. Prioritized by risk: P0 flows get full " +
+        "regression every release, P1 every other release, P2 quarterly. Automation " +
+        "first; manual regression only for flows that can't be scripted.",
+      examples: [
+        "Re-run checkout suite after adding a new payment method — verify all existing methods still work",
+        "Re-run user-management suite after password-policy change — verify existing users unaffected",
+        "Re-run reporting suite after DB migration — verify all historical reports still render",
+      ],
+      passCriteria:
+        "Zero new test failures vs previous release baseline. Regression suite " +
+        "executes in < 60 min. P0 coverage 100% every release.",
+      when: "per-release",
+    },
+    {
+      id: "na-smoke",
+      name: "Smoke Testing",
+      summary: "Quick sanity check after every deploy — is the app alive?",
+      description:
+        "A minimal set of high-signal tests run against production immediately after " +
+        "every deployment. The goal is not exhaustive coverage but fast detection of " +
+        "'the deploy broke login' or 'the deploy broke checkout'. If smoke fails, the " +
+        "deploy is auto-rolled back. Smoke tests should complete in under 5 minutes " +
+        "and cover: home page load, login, one transaction, admin page reachable.",
+      examples: [
+        "GET / → 200 with expected title",
+        "POST /api/auth/login with test creds → 200 + session",
+        "POST /api/checkout with cart token → 200 + order id",
+      ],
+      passCriteria:
+        "All smoke tests pass within 5 min of deploy. Any failure triggers rollback " +
+        "and pages on-call engineer.",
+      when: "post-deploy",
+    },
+    {
+      id: "na-sanity",
+      name: "Sanity Testing",
+      summary: "Narrow, focused check that a specific fix actually works.",
+      description:
+        "Sanity testing is a quick, targeted verification that a recent bug fix or " +
+        "change works as expected — without running the full regression suite. " +
+        "Performed after a hotfix or patch deployment. If sanity passes, the build " +
+        "moves forward; if it fails, the build is rejected and the fix is reworked. " +
+        "Sanity is narrower than smoke (which covers critical end-to-end flows) and " +
+        "deeper than a single unit test (it touches the integrated system).",
+      examples: [
+        "Fix: 'login fails on Firefox' → sanity: log in on Firefox, confirm success",
+        "Fix: 'cart total off by tax' → sanity: add taxable item, verify total",
+        "Fix: 'API returns 500 for /users' → sanity: GET /users, confirm 200",
+      ],
+      passCriteria:
+        "Targeted fix verified within 10 min of deploy. If sanity fails, build " +
+        "rolled back immediately.",
+      when: "post-deploy",
+    },
+    {
+      id: "na-acceptance-uat",
+      name: "User Acceptance Testing (UAT)",
+      summary: "Real users verify the system meets business requirements before go-live.",
+      description:
+        "Final gating step before production release. Real end-users (or their proxy " +
+        "business analysts) execute scripted UAT scenarios in a staging environment " +
+        "that mirrors production. Their formal sign-off is required for go-live. UAT " +
+        "validates business correctness, not technical correctness. Findings are " +
+        "triaged: blockers must be fixed; non-blockers can be deferred with stakeholder " +
+        "approval.",
+      examples: [
+        "UAT: 'Process a real customer order end-to-end' — verify order appears in ERP",
+        "UAT: 'Generate month-end financial report' — verify totals match accounting",
+        "UAT: 'Onboard a new employee' — verify AD account + email + access provisioning",
+      ],
+      passCriteria:
+        "≥ 80% of UAT users sign off. All blockers fixed. Go/no-go decision documented " +
+        "and signed by product owner + QA lead.",
+      when: "per-release",
+    },
+    {
+      id: "na-alpha-beta",
+      name: "Alpha & Beta Testing",
+      summary: "Pre-release validation with internal (alpha) and external (beta) users.",
+      description:
+        "Alpha testing: internal employees exercise the build in a staging environment. " +
+        "Catches obvious UX issues and crashes before any external user sees it. " +
+        "Beta testing: a limited set of external users (typically 50-500) get early " +
+        "access to production (or a production-like environment). Their feedback " +
+        "shapes the final release. Both alpha and beta use real workflows on real data " +
+        "and report bugs through a structured feedback channel.",
+      examples: [
+        "Alpha: 20 internal employees use the new admin console for 1 week → collect NPS + bug reports",
+        "Closed beta: 50 design-partner customers get access → weekly feedback surveys + bug triage",
+        "Open beta: public sign-up → monitor crash rates + support tickets; cut release when stable",
+      ],
+      passCriteria:
+        "Alpha: 0 critical bugs open. Beta: crash-free session rate ≥ 99.5%, " +
+        "NPS ≥ 30, support ticket volume within forecasted range.",
+      when: "per-release",
+    },
+    {
+      id: "na-performance",
+      name: "Performance Testing",
+      summary: "Measure response time, throughput, and stability under load.",
+      description:
+        "Verifies the system meets its performance SLAs under realistic and peak load. " +
+        "Sub-types include Load (expected peak), Stress (beyond peak to find breaking " +
+        "point), Spike (sudden traffic surges), Soak/Endurance (sustained load for " +
+        "hours to catch memory leaks), Scalability (linear scaling as nodes added). " +
+        "Tools: k6, JMeter, Locust, Gatling. Results captured as P50/P95/P99 latency + " +
+        "throughput + error rate; compared against baseline before each release.",
+      examples: [
+        "Load: 1000 concurrent users for 15 min → P95 page load < 2s, 0% 5xx",
+        "Stress: ramp to 5000 users → identify breaking point + recovery behavior",
+        "Soak: 500 users for 8 hours → no memory growth > 10%, no thread leaks",
+      ],
+      passCriteria:
+        "All SLA targets met. No regression vs previous baseline. Performance " +
+        "budget documented and signed off by eng lead.",
+      when: "per-release",
+    },
+    {
+      id: "na-security",
+      name: "Security Testing",
+      summary: "OWASP top 10 + compliance + sensitive-data exposure checks.",
+      description:
+        "Multi-layer security validation. Automated: SAST (SonarQube, CodeQL), DAST " +
+        "(OWASP ZAP, Burp Suite), dependency scanning (Snyk, Dependabot), secret " +
+        "scanning (GitLeaks). Manual: annual third-party penetration test covering " +
+        "OWASP top 10 (injection, broken auth, XSS, SSRF, misconfig, etc.). Compliance " +
+        "frameworks: PCI-DSS for billing, HIPAA for health data, GDPR for EU PII, " +
+        "SOC 2 for SaaS. Findings triaged by CVSS score; Critical/High must be fixed " +
+        "before release.",
+      examples: [
+        "SAST: scan finds hardcoded API key in commit → block merge, alert security team",
+        "DAST: ZAP scan flags XSS in search field → fix + add regression test",
+        "Pen test: tester chains IDOR + JWT weakness to access other users' data → Critical finding",
+      ],
+      passCriteria:
+        "Zero Critical/High findings open at release. All Medium findings have " +
+        "remediation plan with target date. SOC 2 / PCI-DSS audit passed annually.",
+      when: "per-release",
+    },
+    {
+      id: "na-compatibility",
+      name: "Compatibility Testing",
+      summary: "Verify the app works across browsers, OSes, devices, and networks.",
+      description:
+        "Browser matrix: latest 2 versions of Chrome, Firefox, Safari, Edge on Windows, " +
+        "macOS, Linux, iOS, Android. OS matrix: Windows 10/11, macOS 12+, Ubuntu 22.04+, " +
+        "iOS 16+, Android 12+. Device matrix: low-end (1GB RAM), mid-range, flagship. " +
+        "Network: 5G, 4G, 3G, 2G, wifi, offline, throttled. Visual regression with " +
+        "Percy/Applitools on every PR. Responsive breakpoints at 320/425/768/1024/1440/1920.",
+      examples: [
+        "Checkout flow works on iPhone SE (375px) → no horizontal scroll",
+        "Date picker renders correctly on Firefox 115 + Windows 11",
+        "App handles network throttle to 3G → degrades gracefully, retries failed requests",
+      ],
+      passCriteria:
+        "100% of browser/OS/device matrix passes. No visual regression in Percy. " +
+        "Mobile Lighthouse score ≥ 90.",
+      when: "per-release",
+    },
+    {
+      id: "na-usability",
+      name: "Usability Testing",
+      summary: "Real users attempt tasks — measure success rate, time, satisfaction.",
+      description:
+        "Moderated or unmoderated sessions where representative users attempt core " +
+        "tasks (login, checkout, generate report, etc.). Measure: task success rate, " +
+        "time on task, error rate, subjective satisfaction (SUS, NPS). Sessions " +
+        "recorded (with consent) and analyzed. Findings prioritized by impact × effort. " +
+        "Run at least 5 users per persona per release; Nielsen's research shows 5 users " +
+        "catch 85% of usability issues.",
+      examples: [
+        "Task: 'Find and download your invoice' — measure time + success rate + confusion points",
+        "Task: 'Invite a teammate with editor role' — measure errors + backtracking",
+        "Task: 'Set up 2FA' — measure abandonment + support ticket triggers",
+      ],
+      passCriteria:
+        "Task success rate ≥ 85% for primary tasks. SUS score ≥ 70 (above average). " +
+        "All high-impact findings addressed before release.",
+      when: "per-release",
+    },
+    {
+      id: "na-accessibility",
+      name: "Accessibility Testing (WCAG 2.1 AA)",
+      summary: "Verify the app is usable by people with disabilities.",
+      description:
+        "Automated axe-core scan on every page + manual screen reader testing (NVDA " +
+        "on Windows, VoiceOver on macOS, TalkBack on Android). Keyboard-only navigation " +
+        "test (Tab/Shift-Tab/Enter/Space/Escape). Color contrast verified at 4.5:1 for " +
+        "normal text, 3:1 for large text + UI components. ARIA labels on icon-only " +
+        "buttons. Focus order matches reading order. Reduced-motion preference respected. " +
+        "WCAG 2.1 AA conformance statement published per release.",
+      examples: [
+        "Tab through login form → order is email → password → remember-me → submit",
+        "Screen reader reads 'Add to cart' button, not just 'Add'",
+        "Color contrast on warning banner ≥ 4.5:1 in both light + dark themes",
+      ],
+      passCriteria:
+        "Zero axe-core violations. Manual screen reader test passes on critical " +
+        "flows. WCAG 2.1 AA conformance statement published.",
+      when: "per-release",
+    },
+    {
+      id: "na-localization",
+      name: "Localization & Internationalization Testing",
+      summary: "Verify translations render correctly + locale formats work.",
+      description:
+        "Internationalization (i18n) ensures the app can be adapted to any locale " +
+        "without code changes: externalized strings, locale-aware date/number/currency " +
+        "formatting, RTL support for Arabic/Hebrew, pluralization rules. Localization " +
+        "(l10n) testing verifies each translated locale renders correctly: no truncated " +
+        "strings, no hardcoded source-language text, dates/numbers/currencies display in " +
+        "locale format, keyboard shortcuts work on localized layouts.",
+      examples: [
+        "Switch to de_DE → date displays 24.12.2024 (not 12/24/2024)",
+        "Switch to ar_SA → layout flips RTL, icons repositioned, no LTR leaks",
+        "Switch to ja_JP → long strings don't break button layout (CJK line-break rules)",
+      ],
+      passCriteria:
+        "All supported locales render without truncation or layout breakage. " +
+        "Locale formatting verified for date/number/currency. No untranslated strings.",
+      when: "per-release",
+    },
+    {
+      id: "na-database",
+      name: "Database Testing",
+      summary: "Verify schema, constraints, transactions, and migrations.",
+      description:
+        "Three layers: (1) schema testing — constraints (PK, FK, unique, check, not " +
+        "null) enforce business rules; (2) transaction testing — ACID properties hold, " +
+        "concurrent writes don't corrupt data, rollbacks restore state on failure; " +
+        "(3) migration testing — every migration runs forward + backward, zero data " +
+        "loss, idempotent on re-apply. Also covers indexing strategy, query performance, " +
+        "and backup/restore integrity.",
+      examples: [
+        "Try inserting duplicate email → expect unique constraint error",
+        "Transaction: 2 concurrent transfers from same account → no negative balance",
+        "Migration: forward then backward then forward → schema identical, no data loss",
+      ],
+      passCriteria:
+        "100% of constraints tested. All migrations tested forward + backward. " +
+        "P95 query latency < 100ms on production dataset.",
+      when: "per-sprint",
+    },
+    {
+      id: "na-api-contract",
+      name: "API Contract Testing",
+      summary: "Verify every API endpoint honors its OpenAPI/schema contract.",
+      description:
+        "Every API route has: (1) a contract test verifying the request/response schema " +
+        "matches the OpenAPI spec; (2) a happy-path integration test with real deps; " +
+        "(3) error-path tests for each documented status code (400/401/403/404/409/422/500); " +
+        "(4) auth tests verifying permission checks fire correctly. Contract tests run " +
+        "in CI on every PR; consumer-driven contract tests (Pact) used when multiple " +
+        "consumers depend on the same API.",
+      examples: [
+        "POST /orders with valid body → 201 + response matches Order schema",
+        "POST /orders with missing required field → 422 + error object matches Error schema",
+        "GET /admin/users without admin role → 403",
+      ],
+      passCriteria:
+        "100% of API routes have contract + happy + error + auth tests. Schema " +
+        "drift detected within 1 PR. CI blocks merge on any failure.",
+      when: "continuous",
+    },
+    {
+      id: "na-recovery",
+      name: "Recovery & Failover Testing",
+      summary: "Verify the system recovers from crashes, failures, and disasters.",
+      description:
+        "Simulates failures to verify recovery: kill a process, drop a network connection, " +
+        "corrupt a database, failover to a standby region. Measures: time to detect (TTD), " +
+        "time to recover (TTR), data loss (RPO), downtime (RTO). Chaos engineering " +
+        "(Gremlin, Chaos Monkey) automates failure injection in staging. Disaster recovery " +
+        "(DR) test run quarterly: full region failover, verify business continues, document " +
+        "actual RTO/RPO vs targets.",
+      examples: [
+        "Kill primary DB → standby promotes within 30s, zero data loss",
+        "Drop 50% of API requests → circuit breaker trips, fallback returns cached response",
+        "DR test: failover to us-east-2 → verify users can login + checkout within 5 min RTO",
+      ],
+      passCriteria:
+        "All failure scenarios recover within documented RTO. RPO met (no data loss " +
+        "beyond target). Quarterly DR test passed with written report.",
+      when: "per-release",
+    },
+    {
+      id: "na-migration",
+      name: "Migration & Upgrade Testing",
+      summary: "Verify data + code migrations work forward, backward, and zero-downtime.",
+      description:
+        "Every schema migration tested forward (apply) + backward (rollback) on a copy " +
+        "of production data. Zero data loss. App version upgrade tested: N-1 → N, " +
+        "N-2 → N (skip-version), N → N+1 forward-compatibility. For SaaS: zero-downtime " +
+        "deploy via blue/green or canary. For on-prem: customer upgrade path tested from " +
+        "all supported prior versions. Rollback path tested too — if a deploy goes wrong, " +
+        "can we revert within RTO?",
+      examples: [
+        "Migration: add column NOT NULL with default → apply on 1M rows in < 5 min",
+        "Upgrade: v3.2 → v4.0 → all existing configs still load, no data corruption",
+        "Rollback: deploy v4.1, find critical bug, roll back to v4.0 in < 5 min",
+      ],
+      passCriteria:
+        "All migrations tested forward + backward on production-scale data. Upgrade " +
+        "path verified from N-2. Rollback time < RTO.",
+      when: "per-release",
+    },
+    {
+      id: "na-configuration",
+      name: "Configuration & Installation Testing",
+      summary: "Verify the app installs and configures correctly across environments.",
+      description:
+        "For on-prem/self-hosted: test installation on all supported OSes, with all " +
+        "supported dependency versions, with all supported configuration options. " +
+        "Verify the installer handles: clean install, upgrade, side-by-side install, " +
+        "uninstall + reinstall, partial install recovery. For SaaS: verify environment " +
+        "variables, secrets, infrastructure-as-code (Terraform), and feature flags work " +
+        "across dev/staging/prod. Misconfigurations are the #1 cause of cloud outages.",
+      examples: [
+        "Install on Ubuntu 22.04 with PostgreSQL 15 → all features work",
+        "Upgrade from v3 → v4 with custom config → config preserved, no reset",
+        "Missing required env var → installer fails fast with clear error message",
+      ],
+      passCriteria:
+        "100% of supported installation matrices tested. All required config " +
+        "documented. Misconfig produces actionable error within 5s.",
+      when: "per-release",
+    },
+    {
+      id: "na-compliance",
+      name: "Compliance & Regulatory Testing",
+      summary: "Verify the system meets industry regulations (PCI, HIPAA, GDPR, SOC 2).",
+      description:
+        "Compliance testing is mandatory for any product touching payment cards (PCI-DSS), " +
+        "health data (HIPAA/HITECH), EU resident PII (GDPR), or sold to enterprises (SOC 2). " +
+        "Includes: data residency (EU data stays in EU), data subject access requests (DSAR), " +
+        "right to erasure, consent management, audit log retention (typically 7 years for " +
+        "financial), encryption at rest + in transit, key rotation, access reviews. Annual " +
+        "third-party audit produces the formal compliance report.",
+      examples: [
+        "GDPR: user requests data export → delivered in machine-readable format within 30 days",
+        "PCI-DSS: no card data stored in logs; CVV never persisted; card numbers tokenized",
+        "SOC 2: access review every 90 days; departed user access revoked within 24h",
+      ],
+      passCriteria:
+        "Annual audit passes with zero material findings. Quarterly self-assessment " +
+        "checklist complete. All compliance reports published to trust center.",
+      when: "per-release",
+    },
+  ],
+};
+
+// ============================================================
+// 5. NON-AI TESTING METHODOLOGIES — process models (HOW to test)
+// ============================================================
+// Process models that define HOW testing is organized within the team
+// and SDLC for any non-AI product. These methodologies layer on top of
+// the non-AI strategies above — a single test (e.g. a checkout smoke
+// test) might be executed via TDD during dev, via BDD in the sprint,
+// via session-based exploratory testing in UAT, and via production
+// smoke validation, all in the same release cycle.
+export const NON_AI_TESTING_METHODOLOGIES: TestingCategory = {
+  id: "non-ai-methodologies",
+  name: "Non-AI Testing Methodologies",
+  description:
+    "Process models that define HOW testing is organized within the team and SDLC " +
+    "for any non-AI software product. These methodologies layer on top of the " +
+    "strategies above — a single test case might be executed via TDD during " +
+    "development, via BDD in the sprint demo, via session-based exploratory " +
+    "testing in UAT, and via production smoke validation, all in the same release " +
+    "cycle. Mix and match to fit the team, product, and risk profile.",
+  items: [
+    {
+      id: "na-waterfall",
+      name: "Waterfall Testing",
+      summary: "Sequential phases — test only after dev is fully complete.",
+      description:
+        "Classic V-Model / Waterfall approach: requirements → design → implementation → " +
+        "testing → deployment. Testing is a distinct phase that begins only after " +
+        "development is complete. Test plan written up-front from requirements doc. " +
+        "Suited to regulated industries (medical, aerospace, defense) where change control " +
+        "is strict. Downside: defects found late in the cycle are expensive to fix.",
+      examples: [
+        "Medical device: FDA submission requires documented test phase after frozen design",
+        "Aerospace: DO-178C compliance mandates phase-gated testing",
+        "Government contract: fixed-scope delivery with formal test phase at end",
+      ],
+      passCriteria:
+        "All test cases from the up-front test plan executed and passing. Phase " +
+        "exit criteria documented and signed off by QA lead + product owner.",
+      when: "per-release",
+    },
+    {
+      id: "na-v-model",
+      name: "V-Model Testing",
+      summary: "Each dev phase has a mirrored test phase — verification at every level.",
+      description:
+        "Extension of Waterfall where each development phase has a corresponding test " +
+        "phase: Requirements ↔ Acceptance Tests, System Design ↔ System Tests, " +
+        "Architecture ↔ Integration Tests, Module Design ↔ Unit Tests. Testing happens " +
+        "at every V-level, not just at the end. Each test phase has entry/exit criteria. " +
+        "Used in regulated industries where traceability is mandatory.",
+      examples: [
+        "Unit tests verify module design; Integration tests verify architecture",
+        "System tests verify system design; UAT verifies requirements",
+        "Every defect traced back to which V-phase introduced it",
+      ],
+      passCriteria:
+        "Every V-level has documented tests. 100% of requirements traced to " +
+        "acceptance tests. Defect origin analysis performed each release.",
+      when: "per-release",
+    },
+    {
+      id: "na-agile",
+      name: "Agile Testing (Scrum / Kanban)",
+      summary: "Tests written alongside user stories within each sprint.",
+      description:
+        "QA is embedded in the cross-functional team, not a separate gate at the end. " +
+        "Each user story has acceptance criteria that double as test cases. Stories are " +
+        "not 'done' until automated tests pass in CI. Sprint retrospective includes a " +
+        "'what did QA catch' review to improve the next sprint's test plan. Kanban teams " +
+        "do the same but flow tests through the column limits instead of sprint boundaries.",
+      examples: [
+        "Story: 'User can export orders to CSV' → test: CSV export contains all columns + filters",
+        "Story: 'Plan upgrade gates new modules' → test: starter→growth unlock happens immediately",
+        "Sprint retro: '3 bugs slipped to prod' → action: add integration test for that seam",
+      ],
+      passCriteria:
+        "Every story merged has at least one passing automated test. Sprint demo " +
+        "shows the test passing live. Velocity stable across sprints.",
+      when: "per-sprint",
+    },
+    {
+      id: "na-tdd",
+      name: "Test-Driven Development (TDD)",
+      summary: "Red-Green-Refactor: write failing test first, then code to make it pass.",
+      description:
+        "Cycle: (1) Red — write a small test that fails because the feature doesn't " +
+        "exist yet; (2) Green — write the minimum code to make the test pass; " +
+        "(3) Refactor — clean up the code while keeping tests green. TDD produces " +
+        "high-coverage code by construction, forces small testable units, and gives " +
+        "instant feedback. Best for business logic, parsers, algorithms — less useful " +
+        "for UI/integration.",
+      examples: [
+        "Red: test formatCurrency(undefined) throws → fails (function returns 'NaN')",
+        "Green: add undefined guard → test passes",
+        "Refactor: extract formatter into shared util → all tests still green",
+      ],
+      passCriteria:
+        "≥ 80% of new business-logic code is TDD. Pre-commit hook runs tests. " +
+        "Coverage on new code ≥ 90% line.",
+      when: "continuous",
+    },
+    {
+      id: "na-bdd",
+      name: "Behavior-Driven Development (BDD)",
+      summary: "Given-When-Then scenarios written with stakeholders, executed as tests.",
+      description:
+        "BDD bridges business + technical by writing tests in natural language: " +
+        "Given [context], When [action], Then [outcome]. Scenarios authored jointly " +
+        "by product, QA, and engineering — they become executable tests via Cucumber, " +
+        "SpecFlow, or Playwright's BDD mode. Living documentation: the spec is the test " +
+        "is the doc. Best for high-level feature flows where business stakeholders want " +
+        "visibility.",
+      examples: [
+        "Given a logged-in user with 2 items in cart, When they click 'Checkout', Then they see the payment form",
+        "Given an admin user, When they click 'Delete User', Then a confirmation modal appears",
+        "Given a free-tier user, When they navigate to Pro feature, Then an upgrade modal appears",
+      ],
+      passCriteria:
+        "All acceptance criteria expressed as BDD scenarios. ≥ 90% of scenarios " +
+        "passing in CI. Product owner reviews scenarios each sprint.",
+      when: "per-sprint",
+    },
+    {
+      id: "na-atdd",
+      name: "Acceptance Test-Driven Development (ATDD)",
+      summary: "Acceptance tests written before any code, by the whole team.",
+      description:
+        "Similar to BDD but focused on acceptance criteria for the whole feature, not " +
+        "individual scenarios. Team (product + dev + QA) writes acceptance tests together " +
+        "at story kick-off. These tests are automated and run in CI. The story isn't " +
+        "'done' until acceptance tests pass. ATDD forces shared understanding before code " +
+        "is written — eliminates the 'that's not what I meant' discovery at demo time.",
+      examples: [
+        "Story kick-off: write 3 acceptance tests for 'User can reset password'",
+        "Tests checked into repo alongside story; run in CI from day 1",
+        "Story demo: show all 3 acceptance tests passing",
+      ],
+      passCriteria:
+        "100% of stories have acceptance tests written at kick-off. All acceptance " +
+        "tests green at demo. Zero 'this isn't what I asked for' surprises.",
+      when: "per-sprint",
+    },
+    {
+      id: "na-shift-left",
+      name: "Shift-Left Testing",
+      summary: "Test earlier in the lifecycle — cheaper to catch bugs before code lands.",
+      description:
+        "Push testing as early as possible: (1) requirements review — QA catches " +
+        "ambiguous specs before coding starts; (2) test plan in the story; (3) pre-commit " +
+        "hooks run lint + type-check + unit tests; (4) PR template requires 'tests added' " +
+        "checkbox; (5) CI blocks merge on any test failure. The earlier a bug is caught, " +
+        "the cheaper it is to fix — by 10-100×.",
+      examples: [
+        "QA reviews story before sprint planning — catches missing acceptance criterion",
+        "Pre-commit hook fails: missing type annotation → dev fixes before pushing",
+        "CI fails: PR introduces uncovered code path → dev adds test before merge",
+      ],
+      passCriteria:
+        "100% of PRs have tests added in same PR. Pre-commit hooks pass before any " +
+        "code reaches main. Defect leak rate (bugs found in prod) trending down.",
+      when: "continuous",
+    },
+    {
+      id: "na-shift-right",
+      name: "Shift-Right Testing",
+      summary: "Test in production — synthetic monitoring, canaries, feature flags.",
+      description:
+        "Complement to shift-left: accept that pre-prod testing can't catch everything, " +
+        "so instrument production to catch issues fast. Techniques: synthetic monitors " +
+        "(ping critical endpoints every 5 min), canary deploys (1% → 10% → 100% rollout), " +
+        "feature flags (instant rollback without redeploy), real-user monitoring (RUM — " +
+        "track P95 latency from real browsers), error tracking (Sentry catches exceptions " +
+        "in real time). Combined with shift-left for full coverage.",
+      examples: [
+        "Synthetic: GET / every 5 min → fails 3× → page on-call",
+        "Canary: deploy to 1% of users → watch error rate for 10 min → ramp to 10%",
+        "Feature flag: 'new-checkout' enabled for 5% → bounce rate spikes → flip off instantly",
+      ],
+      passCriteria:
+        "Synthetic monitoring on all critical endpoints. Canary deploy process " +
+        "documented. Mean time to detection (MTTD) < 5 min for production issues.",
+      when: "continuous",
+    },
+    {
+      id: "na-exploratory",
+      name: "Exploratory Testing",
+      summary: "Time-boxed sessions where testers explore the app without a script.",
+      description:
+        "Testers are given a charter (e.g. 'explore the checkout flow with unusual " +
+        "payment methods') and a time box (60-90 min). They design + execute tests " +
+        "simultaneously, learning the system as they go. Catches the unknown-unknowns " +
+        "that scripted tests miss. Sessions are debriefed; any new test cases added to " +
+        "the automation suite. Session-based test management (SBTM) structures the work.",
+      examples: [
+        "Charter: 'Break the search feature' → find: 1000-char query crashes the API",
+        "Charter: 'Test edge-case prices' → find: $0.01 order breaks invoice PDF",
+        "Charter: 'Try SQL injection in every form field' → find: search box is vulnerable",
+      ],
+      passCriteria:
+        "≥ 4 exploratory sessions per release. All high-severity findings fixed " +
+        "before release; medium findings scheduled next sprint. Session notes archived.",
+      when: "per-release",
+    },
+    {
+      id: "na-session-based",
+      name: "Session-Based Testing (SBTM)",
+      summary: "Structured exploratory testing with charters, time boxes, and debriefs.",
+      description:
+        "Disciplined form of exploratory testing. Each session has: (1) a charter " +
+        "(what to explore), (2) a time box (typically 60-90 min), (3) a tester, (4) " +
+        "notes taken during the session, (5) a debrief with another tester/QA lead. " +
+        "Sessions are tracked in a database; coverage is mapped to charters. Produces " +
+        "quantifiable output: 'X charters executed, Y bugs found, Z areas covered' — " +
+        "useful for management reporting while keeping exploratory freedom.",
+      examples: [
+        "Charter: 'Explore admin settings with role X' — 90 min — 3 bugs found",
+        "Charter: 'Test password reset on mobile' — 60 min — 1 bug, 4 notes",
+        "Debrief: peer reviews notes, suggests 2 follow-up charters for next sprint",
+      ],
+      passCriteria:
+        "≥ 8 sessions per release. Debrief completed for every session. Coverage " +
+        "matrix shows every major feature area touched by at least one charter.",
+      when: "per-release",
+    },
+    {
+      id: "na-risk-based",
+      name: "Risk-Based Testing",
+      summary: "Prioritize tests by business risk × likelihood of failure.",
+      description:
+        "Identify the modules and user journeys with the highest business impact or " +
+        "regulatory exposure, then concentrate test effort there. Risk = Impact × " +
+        "Likelihood. High-risk areas get deep testing (P0 suite every release); " +
+        "low-risk areas get smoke-level coverage. Risk register reviewed + approved " +
+        "by product + QA lead each release. Re-prioritizes test effort when risk changes " +
+        "(e.g. a payment module rewrite is higher risk than a UI tweak).",
+      examples: [
+        "Risk: billing miscalculation → P0 test every tax + discount combination",
+        "Risk: GDPR violation → P0 test data export + erasure flows every release",
+        "Risk: cosmetic typo in FAQ → P2 test once per quarter",
+      ],
+      passCriteria:
+        "Risk register reviewed + signed off each release. Every P0 risk has ≥ 3 " +
+        "test cases. Risk-weighted coverage ≥ 95%.",
+      when: "per-release",
+    },
+    {
+      id: "na-model-based",
+      name: "Model-Based Testing",
+      summary: "Generate tests from a state model of the system under test.",
+      description:
+        "Build a state machine (or other formal model) of the system, then let a tool " +
+        "(GraphWalker, ModelJUnit, NModel) auto-generate test paths that exercise every " +
+        "state + transition. Covers combinations a human would miss. Especially powerful " +
+        "for protocols, workflows with many states, and UI flows with branching. Model " +
+        "acts as living spec; spec drift caught when model no longer matches system.",
+      examples: [
+        "Order state machine: Created → Paid → Shipped → Delivered → Returned",
+        "Generate tests: every state reachable, every transition exercised, every invalid transition rejected",
+        "User session model: anonymous → registered → trial → paid → churned → reactivated",
+      ],
+      passCriteria:
+        "Model coverage 100% (all states + transitions). All auto-generated tests " +
+        "pass. Model reviewed by eng lead each release.",
+      when: "per-release",
+    },
+    {
+      id: "na-heuristic",
+      name: "Heuristic Testing",
+      summary: "Experienced testers use intuition + checklists to find bugs fast.",
+      description:
+        "Testers apply experience-based heuristics to find bugs efficiently. Famous " +
+        "heuristics: WHET (What's Happening Everywhere Test), SFDIPOT (Structure, " +
+        "Function, Data, Interfaces, Platform, Operations, Time), FEW HICCUPPS " +
+        "(Familiarity, Explainability, World, History, Image, Comparable Products, " +
+        "Claims, User Expectations, Product, Purpose, Statutes). Best for finding subtle " +
+        "UX bugs, consistency issues, and edge cases that automated tests can't catch.",
+      examples: [
+        "Heuristic: 'Consistency' → buttons styled differently on different pages",
+        "Heuristic: 'User expectations' → 'Cancel' button doesn't undo changes",
+        "Heuristic: 'Claims' → marketing says 'instant' but action takes 5s",
+      ],
+      passCriteria:
+        "Heuristic checklist reviewed each release. ≥ 5 heuristics applied per " +
+        "feature area. Findings logged and prioritized.",
+      when: "per-release",
+    },
+    {
+      id: "na-pair-testing",
+      name: "Pair Testing",
+      summary: "Two testers on one machine — collaborative exploration.",
+      description:
+        "Two testers (or tester + developer, or tester + product manager) sit at one " +
+        "machine and explore the system together. One drives, one observes + takes notes; " +
+        "they swap roles every 20-30 min. Pair testing catches more bugs than solo " +
+        "(two brains spot different issues), transfers knowledge between team members, " +
+        "and surfaces design questions neither would have raised alone. Best for complex " +
+        "features or when onboarding a new tester.",
+      examples: [
+        "Pair: QA + product manager explore new checkout flow → find 3 UX issues",
+        "Pair: QA + dev who wrote the feature → dev learns what edge cases look like",
+        "Pair: senior QA + new hire → knowledge transfer + onboarding to codebase",
+      ],
+      passCriteria:
+        "≥ 1 pair session per major feature. Both testers contribute findings. " +
+        "Pair notes logged for future reference.",
+      when: "per-sprint",
+    },
+    {
+      id: "na-mutation",
+      name: "Mutation Testing",
+      summary: "Inject bugs into code to verify tests actually catch them.",
+      description:
+        "Tool (Stryker, PIT, Mutmut) deliberately introduces small code changes " +
+        "('mutations') — e.g. `>` → `>=`, `+` → `-`, `true` → `false`. For each mutation, " +
+        "runs the test suite. If tests still pass → mutation 'survived' → tests are weak. " +
+        "If tests fail → mutation 'killed' → tests caught the bug. Mutation score = " +
+        "killed / total. Reveals coverage gaps that line coverage misses (a test that " +
+        "executes a line without asserting anything still counts as covered).",
+      examples: [
+        "Mutate `if (x > 0)` → `if (x >= 0)` → tests fail? Good. Tests pass? Bad — add assertion.",
+        "Mutate `return total + tax` → `return total - tax` → tests fail? Good.",
+        "Mutation score: 78% → target 85% → add tests for surviving mutations",
+      ],
+      passCriteria:
+        "Mutation score ≥ 80% on business-logic modules. Run weekly in CI. " +
+        "Surviving mutations reviewed each sprint.",
+      when: "continuous",
+    },
+    {
+      id: "na-fuzz",
+      name: "Fuzz Testing (Fuzzing)",
+      summary: "Feed random/invalid input to find crashes + security vulnerabilities.",
+      description:
+        "Automatically generate massive volumes of random, malformed, or unexpected " +
+        "input and feed it to the system under test. Catches crashes, memory safety bugs, " +
+        "and security vulnerabilities that hand-crafted tests miss. Two flavors: " +
+        "dumb fuzzing (pure random) and smart fuzzing (knows the input format and mutates " +
+        "structurally). Tools: AFL, libFuzzer, OWASP ZAP fuzzer, Burp Intruder. Standard " +
+        "for parsers, network protocols, file-format handlers, and any input boundary.",
+      examples: [
+        "Fuzz API: 1M random JSON payloads → find 3 crashes + 1 memory leak",
+        "Fuzz file upload: malformed PNG/ZIP/PDF → find 2 parser crashes",
+        "Fuzz URL params: 10K random query strings → find 1 SQL injection",
+      ],
+      passCriteria:
+        "Fuzzing runs ≥ 24 hours on critical input surfaces each release. All " +
+        "crashes + vulnerabilities fixed before release.",
+      when: "per-release",
+    },
+    {
+      id: "na-property",
+      name: "Property-Based Testing",
+      summary: "Generate 100s of test cases from a property spec — find edge cases.",
+      description:
+        "Instead of writing individual test cases, the tester writes a 'property' that " +
+        "should always hold (e.g. 'reverse(reverse(x)) == x' for any list x). Framework " +
+        "(Hypothesis for Python, fast-check for JS/TS, QuickCheck for Haskell) generates " +
+        "100s of random inputs and verifies the property holds. When it fails, framework " +
+        "shrinks the input to the minimal failing case. Catches edge cases (empty lists, " +
+        "negative numbers, Unicode) that hand-written tests miss.",
+      examples: [
+        "Property: sort(list) returns same elements, in order, for any list of integers",
+        "Property: serialize(x) then deserialize → equals x, for any object of type T",
+        "Property: cart total equals sum of line totals, for any cart + any discount",
+      ],
+      passCriteria:
+        "≥ 1 property test per business-logic module. 100+ random inputs per " +
+        "property. Shrunk failures reproduced in unit test.",
+      when: "per-sprint",
+    },
+    {
+      id: "na-visual-regression",
+      name: "Visual Regression Testing",
+      summary: "Screenshot every page + diff vs baseline to catch unintended UI changes.",
+      description:
+        "After every PR, take screenshots of every page at every breakpoint + compare " +
+        "to the baseline. Any pixel difference flagged for human review. Tools: Percy, " +
+        "Applitools, Playwright + pixelmatch, Chromatic. Catches CSS regressions, layout " +
+        "shifts, and unintended side effects of refactors. Reviewer can accept or reject " +
+        "the diff; accepting updates the baseline.",
+      examples: [
+        "PR changes button color → Percy flags 47 pages affected → reviewer approves",
+        "PR refactors CSS → Percy flags unexpected layout shift on dashboard → reviewer rejects",
+        "PR adds new feature → Percy flags new component renders correctly → baseline updated",
+      ],
+      passCriteria:
+        "Visual regression runs on every PR. Reviewer approves all diffs before " +
+        "merge. Baseline updated each release.",
+      when: "continuous",
+    },
+    {
+      id: "na-chaos",
+      name: "Chaos Engineering",
+      summary: "Deliberately inject failures in production to verify resilience.",
+      description:
+        "Practice of deliberately injecting failures (kill process, drop network, " +
+        "saturate CPU) into production to verify the system keeps working. Started at " +
+        "Netflix with Chaos Monkey. Game days: scheduled exercises where the team " +
+        "manually injects failures and observes response. Goal: find weaknesses before " +
+        "users do. Must start small (kill one non-critical instance) and grow gradually. " +
+        "Critical: have kill switches + auto-rollback ready.",
+      examples: [
+        "Chaos Monkey: kill 1 random EC2 instance every weekday in business hours",
+        "Game day: drop RDS connection for 30s → verify app degrades gracefully",
+        "Chaos: saturate network → verify circuit breakers trip + retries work",
+      ],
+      passCriteria:
+        "≥ 1 chaos experiment per week in staging. Annual game day in production " +
+        "with full team. Zero unplanned user impact.",
+      when: "continuous",
+    },
+    {
+      id: "na-checklist",
+      name: "Checklist-Based Testing",
+      summary: "Standardized checklists ensure no common issues slip through.",
+      description:
+        "Maintain a checklist of common bugs + best practices (e.g. 'all forms have " +
+        "client + server validation', 'all date pickers handle timezones', 'all error " +
+        "messages are user-friendly'). Tester walks through the checklist for each new " +
+        "feature. Lightweight, fast, catches recurring issues. Checklists evolve based on " +
+        "post-release defect analysis — every bug found in prod adds a new checklist item.",
+      examples: [
+        "Checklist: 'Empty state for every list view' — apply to new feature",
+        "Checklist: 'Loading state for every async action' — apply to new feature",
+        "Checklist: 'Error state for every API call' — apply to new feature",
+      ],
+      passCriteria:
+        "Checklist applied to every new feature. 100% checklist items verified. " +
+        "Checklist reviewed + updated each sprint based on defect analysis.",
+      when: "per-sprint",
+    },
+  ],
+};
+
+// ============================================================
+// 6. QA REPORTS & ARTIFACTS — deliverables produced by testing
+// ============================================================
+// The artifacts a QA team produces to document testing, communicate
+// results, and prove compliance. Each artifact has a standard
+// template, an owner, and a cadence. Together they form the
+// audit-ready evidence trail for any release.
+export const QA_REPORTS_ARTIFACTS: TestingCategory = {
+  id: "qa-reports",
+  name: "QA Reports & Artifacts",
+  description:
+    "The deliverables a QA team produces to document testing, communicate results, " +
+    "and prove compliance. Each artifact has a standard template, an owner, and a " +
+    "cadence — together they form the audit-ready evidence trail for any release. " +
+    "Adopt the full set for regulated industries (medical, finance, government); " +
+    "pick a subset for smaller teams. Every artifact should be version-controlled " +
+    "and reproducible from the test run that produced it.",
+  items: [
+    {
+      id: "qa-test-plan",
+      name: "Test Plan",
+      summary: "Master document describing scope, strategy, resources, schedule, risks.",
+      description:
+        "The test plan is the QA team's contract with the project. Authored by the QA " +
+        "lead at project / release kick-off, it documents: (1) scope — what's in and out " +
+        "of testing; (2) strategy — which testing types and methodologies will be applied; " +
+        "(3) resources — who tests what, environments, tools; (4) schedule — entry/exit " +
+        "criteria, milestones; (5) risks — what could go wrong and the mitigation; " +
+        "(6) deliverables — which reports and artifacts will be produced. Reviewed and " +
+        "signed by product owner, eng lead, QA lead. IEEE 829 is the classic template.",
+      examples: [
+        "v3.0 release test plan: 14 modules in scope, 2 out of scope (legacy admin, deprecated API)",
+        "Resources: 3 QA engineers × 4 weeks + 1 automation engineer × 2 weeks",
+        "Risk: payment gateway sandbox unstable → mitigation: mock in CI, real calls in staging nightly",
+      ],
+      passCriteria:
+        "Test plan reviewed + signed by product, eng, QA leads before testing " +
+        "begins. Any scope changes require change-control process.",
+      when: "per-release",
+    },
+    {
+      id: "qa-test-cases",
+      name: "Test Cases",
+      summary: "Step-by-step scripts for each test — input, action, expected result.",
+      description:
+        "Each test case documents: (1) unique ID; (2) title; (3) precondition; (4) " +
+        "step-by-step input + action; (5) expected result; (6) actual result (filled at " +
+        "execution time); (7) pass/fail status; (8) defect ID if failed. Stored in a " +
+        "test management tool (TestRail, Zephyr, Xray, TestLink). Linked to requirements " +
+        "via the traceability matrix. Automated test cases live alongside the code; " +
+        "manual cases live in the test management tool.",
+      examples: [
+        "TC-1042: Given logged-in admin, when click 'Delete User' on user 'jsmith', then user is removed + audit log entry created",
+        "TC-1043: Given cart with 3 items, when remove 1 item, then subtotal updates + item count shows 2",
+        "TC-1044: Given free-tier user, when navigate to /reports, then upgrade modal appears",
+      ],
+      passCriteria:
+        "100% of in-scope requirements have ≥ 1 test case. Test cases peer-reviewed " +
+        "before execution. Status updated within 24h of execution.",
+      when: "per-sprint",
+    },
+    {
+      id: "qa-traceability",
+      name: "Requirements Traceability Matrix (RTM)",
+      summary: "Map every requirement → test case → defect → status.",
+      description:
+        "The RTM is the auditor's best friend. It's a matrix that maps: requirement " +
+        "ID → test case ID(s) → execution status → defect ID(s) → closure status. " +
+        "Every requirement must have at least one test case; every test case must trace " +
+        "to a requirement; every failed test must trace to a defect; every defect must " +
+        "have a closure status. RTM proves that 100% of requirements were tested. " +
+        "Required for compliance (FDA 510(k), IEC 62304, DO-178C, ISO 26262).",
+      examples: [
+        "REQ-101 'User can reset password' → TC-1010, TC-1011, TC-1012 → all pass → no defects",
+        "REQ-205 'PCI-DSS: no card data in logs' → TC-2050 → failed → BUG-9182 → fixed, retested",
+        "REQ-301 'GDPR: data export in 30 days' → TC-3010 → pass → no defects",
+      ],
+      passCriteria:
+        "100% of in-scope requirements traced to ≥ 1 test case. Zero orphan test " +
+        "cases. RTM exported as PDF + Excel for audit.",
+      when: "per-release",
+    },
+    {
+      id: "qa-defect-report",
+      name: "Defect Report",
+      summary: "Each bug logged with repro steps, severity, priority, screenshots.",
+      description:
+        "Every defect gets a structured report: (1) unique ID; (2) title; (3) description; " +
+        "(4) repro steps (numbered, specific); (5) expected vs actual; (6) environment " +
+        "(browser, OS, build, environment); (7) severity (Critical/High/Medium/Low); " +
+        "(8) priority (P0/P1/P2/P3); (9) screenshots/video; (10) reporter + assignee; " +
+        "(11) status (New/Triaged/In-Progress/Fixed/Verified/Closed); (12) root cause " +
+        "(filled at closure). Stored in Jira, GitHub Issues, Linear, or similar.",
+      examples: [
+        "BUG-1234: Cart total shows $0 when only free items in cart (Critical, P0)",
+        "BUG-1235: Date picker off by 1 day when crossing DST (Medium, P2)",
+        "BUG-1236: 'Cancel' button text overflows on mobile (Low, P3)",
+      ],
+      passCriteria:
+        "100% of defects logged within 24h of discovery. All Critical/High defects " +
+        "fixed before release. Defect closure rate tracked monthly.",
+      when: "continuous",
+    },
+    {
+      id: "qa-coverage",
+      name: "Test Coverage Report",
+      summary: "Quantitative coverage metrics — requirements, code, risk, execution.",
+      description:
+        "Multi-dimensional coverage report: (1) requirements coverage — % of " +
+        "requirements with ≥ 1 passing test; (2) code coverage — line/branch/function " +
+        "coverage from unit + integration tests; (3) risk coverage — % of risk-register " +
+        "items with passing tests; (4) execution coverage — % of planned tests actually " +
+        "executed this release. Generated by tool (SonarQube, Codecov, JaCoCo, istanbul) " +
+        "and reviewed at release gate. Coverage drops are red flags; coverage plateaus " +
+        "are normal — focus on coverage of high-risk code, not vanity 100%.",
+      examples: [
+        "Requirements coverage: 142/150 = 94.7% (8 deferred to next release)",
+        "Code coverage: 78% line, 65% branch, 82% function (business-logic modules 91%+)",
+        "Risk coverage: 18/18 P0 risks covered, 12/15 P1 risks covered",
+      ],
+      passCriteria:
+        "Requirements coverage ≥ 95% for P0/P1. Code coverage ≥ 80% on " +
+        "business-logic modules. Coverage drops require reviewer sign-off.",
+      when: "per-release",
+    },
+    {
+      id: "qa-test-summary",
+      name: "Test Summary Report",
+      summary: "End-of-release executive summary — what was tested, results, sign-off.",
+      description:
+        "The single document an executive reads to decide 'ship or no ship'. Authored " +
+        "by QA lead at end of release. Contains: (1) scope tested; (2) test cases planned " +
+        "vs executed vs passed vs failed; (3) defects found by severity + status; (4) " +
+        "coverage metrics; (5) known issues + workarounds; (6) risk assessment; (7) " +
+        "go/no-go recommendation with sign-off block. Distributed to stakeholders + " +
+        "archived for audit. IEEE 829 standard format.",
+      examples: [
+        "v3.0 Test Summary: 1,250 tests executed, 1,238 passed, 12 failed (10 fixed, 2 deferred)",
+        "Coverage: 95% requirements, 82% code, 100% P0 risks",
+        "Go recommendation: zero Critical defects open; 2 High defects with workarounds documented",
+      ],
+      passCriteria:
+        "Test summary reviewed + signed by product, eng, QA leads. Go/no-go " +
+        "decision documented. Archived in version control for audit.",
+      when: "per-release",
+    },
+    {
+      id: "qa-risk-matrix",
+      name: "Risk Matrix / Risk Register",
+      summary: "Quantified risks with likelihood × impact + mitigation + owner.",
+      description:
+        "Living document maintained by QA lead + product owner. Each row is a risk with: " +
+        "(1) description; (2) likelihood (1-5); (3) impact (1-5); (4) risk score = " +
+        "likelihood × impact; (5) mitigation plan; (6) owner; (7) status; (8) review date. " +
+        "Risks sorted by score; top 10 reviewed weekly. New risks added as discovered; " +
+        "closed risks archived. Drives test prioritization — high-risk areas get deeper " +
+        "testing. Required input for compliance audits (SOC 2, ISO 27001).",
+      examples: [
+        "Risk: payment gateway outage → L2 × I5 = 10 → mitigation: circuit breaker + retry",
+        "Risk: GDPR data leak → L1 × I5 = 5 → mitigation: encryption + access controls",
+        "Risk: key team member leaves → L3 × I3 = 9 → mitigation: pair programming + docs",
+      ],
+      passCriteria:
+        "Risk register reviewed weekly by QA + product. Top 10 risks have " +
+        "mitigation plans with owners. Risk score trends tracked monthly.",
+      when: "per-release",
+    },
+    {
+      id: "qa-entry-exit",
+      name: "Entry / Exit Criteria Report",
+      summary: "Gate criteria for starting + finishing each test phase.",
+      description:
+        "Documents the criteria that must be met before testing can start (entry) and " +
+        "before testing can be declared complete (exit). Examples — Entry to System " +
+        "Testing: unit tests passing, build deployed to staging, test environment " +
+        "configured. Exit from System Testing: 100% test cases executed, ≥ 95% pass rate, " +
+        "zero Critical defects open, all High defects fixed or deferred-with-approval. " +
+        "Each phase (Unit, Integration, System, UAT) has its own entry/exit criteria.",
+      examples: [
+        "Entry to UAT: System Testing exit criteria met + UAT environment refreshed from prod",
+        "Exit from UAT: ≥ 80% of UAT users signed off + all blockers fixed",
+        "Exit to Production: Test Summary Report signed + Go decision documented",
+      ],
+      passCriteria:
+        "Entry/exit criteria documented for each test phase. Phase gate review " +
+        "held with QA + product + eng leads before advancing to next phase.",
+      when: "per-release",
+    },
+    {
+      id: "qa-kpi-dashboard",
+      name: "QA KPI Dashboard",
+      summary: "Live metrics — pass rate, defect density, MTTR, automation %, cycle time.",
+      description:
+        "Real-time dashboard surfacing QA health: (1) test pass rate this release; " +
+        "(2) defect density (bugs per KLOC); (3) defect leak rate (bugs found in prod " +
+        "vs caught in QA); (4) MTTR (mean time to repair — from bug report to fix); " +
+        "(5) automation % (automated vs manual test cases); (6) test cycle time; " +
+        "(7) coverage trends. Displayed in BI tool (Grafana, Datadog, PowerBI, Looker). " +
+        "Reviewed monthly by engineering leadership.",
+      examples: [
+        "Pass rate: 97.4% (1,238/1,250) — target ≥ 95% ✓",
+        "Defect density: 1.8 bugs/KLOC — target ≤ 2.5 ✓",
+        "Defect leak: 4 bugs in prod this quarter — target ≤ 5 ✓",
+      ],
+      passCriteria:
+        "Dashboard updated daily. Monthly review with engineering leadership. " +
+        "All KPIs trending toward targets or explanation documented.",
+      when: "continuous",
+    },
+    {
+      id: "qa-automation-report",
+      name: "Test Automation Report",
+      summary: "Coverage, runtime, flakiness, maintenance burden of automated tests.",
+      description:
+        "Quarterly report on the health of the automation suite: (1) total automated " +
+        "test count + delta; (2) coverage by layer (unit/integration/E2E); (3) average " +
+        "runtime + P95 runtime; (4) flaky test rate (tests that pass on retry — target " +
+        "< 1%); (5) maintenance burden (hours/week spent fixing broken tests); (6) ROI " +
+        "(hours saved vs manual testing). Drives investment decisions — when to add " +
+        "automation, when to delete flaky tests, when to migrate frameworks.",
+      examples: [
+        "Total: 4,218 automated tests (+312 this quarter); runtime 18 min P95",
+        "Flaky rate: 1.8% (target < 1%) — top 5 flaky tests quarantined for fix or delete",
+        "ROI: 320 hours saved this quarter vs equivalent manual testing",
+      ],
+      passCriteria:
+        "Flaky rate < 1%. Runtime growth slower than test count growth (good " +
+        "parallelization). ROI positive and trending up.",
+      when: "per-release",
+    },
+    {
+      id: "qa-performance-report",
+      name: "Performance Test Report",
+      summary: "Latency, throughput, resource utilization under load — with baselines.",
+      description:
+        "Output of performance testing. Includes: (1) test scenario (load profile, " +
+        "duration, ramp); (2) latency P50/P95/P99 for each endpoint; (3) throughput " +
+        "(requests/sec) sustained; (4) error rate; (5) resource utilization (CPU, RAM, " +
+        "DB connections, disk I/O); (6) bottleneck analysis; (7) comparison vs previous " +
+        "baseline; (8) recommendation. Generated by k6/JMeter/Gatling/Locust. Reviewed " +
+        "by eng lead + SRE before release.",
+      examples: [
+        "Load test: 1000 users × 15 min → P95 = 1.8s (target < 2s) ✓; 0% 5xx ✓",
+        "Stress test: broke at 3500 users — bottleneck was DB connection pool (max 50)",
+        "Soak test: 500 users × 8h → memory grew 8% (within 10% budget) ✓",
+      ],
+      passCriteria:
+        "All SLA targets met. No regression vs previous baseline. Bottlenecks " +
+        "documented with remediation plan.",
+      when: "per-release",
+    },
+    {
+      id: "qa-security-report",
+      name: "Security Test Report",
+      summary: "SAST + DAST + pen test findings + remediation status.",
+      description:
+        "Aggregated security findings for the release: (1) SAST results (CodeQL, " +
+        "SonarQube) — code-level vulnerabilities; (2) DAST results (ZAP, Burp) — " +
+        "runtime vulnerabilities; (3) dependency scan (Snyk, Dependabot) — known CVEs " +
+        "in dependencies; (4) secret scan (GitLeaks) — leaked credentials; (5) " +
+        "third-party pen test — manual findings. Each finding: CVSS score, severity, " +
+        "exploitability, remediation, owner, due date. Required for SOC 2 / PCI-DSS / " +
+        "HIPAA compliance.",
+      examples: [
+        "SAST: 0 Critical, 1 High (hardcoded key in test file — false positive, suppressed)",
+        "DAST: 2 Medium (XSS in search, CSRF on profile update) — both fixed",
+        "Pen test: 1 Critical (IDOR allows access to other users' invoices) — fixed + retested",
+      ],
+      passCriteria:
+        "Zero Critical/High open at release. All Medium have remediation plan " +
+        "with target date. Pen test report archived for audit.",
+      when: "per-release",
+    },
+    {
+      id: "qa-uat-report",
+      name: "UAT Sign-off Report",
+      summary: "Formal UAT results + stakeholder sign-off + go/no-go recommendation.",
+      description:
+        "Documented output of UAT: (1) UAT scenarios executed vs passed; (2) defects " +
+        "raised by UAT users + severity + status; (3) UAT user feedback (qualitative + " +
+        "NPS/SUS scores if collected); (4) stakeholder sign-off block (each UAT user " +
+        "signs 'accept' or 'reject with reasons'); (5) go/no-go recommendation from QA " +
+        "lead. Required gate before production release. Distributed to project sponsor " +
+        "+ archived for audit.",
+      examples: [
+        "UAT: 50 scenarios executed, 47 passed, 3 failed (2 fixed, 1 deferred with sign-off)",
+        "UAT feedback: 'new checkout is much faster' (SUS 78, up from 65 last release)",
+        "Sign-off: 8/10 UAT users accepted, 2 conditional acceptances (deferred bugs)",
+      ],
+      passCriteria:
+        "≥ 80% of UAT users sign off. All blockers fixed. Go/no-go decision " +
+        "documented and signed by project sponsor.",
+      when: "per-release",
+    },
+    {
+      id: "qa-automation-pipeline",
+      name: "CI/CD Test Pipeline Report",
+      summary: "What tests run in CI, when, pass rates, and time-to-feedback.",
+      description:
+        "Documents the test gates in the CI/CD pipeline: (1) pre-commit (lint, type-check, " +
+        "unit tests on changed files — runs in < 30s); (2) PR check (full unit + integration " +
+        "suite — runs in < 10 min); (3) merge to main (E2E suite — runs in < 15 min); " +
+        "(4) pre-deploy (smoke tests on staging — < 5 min); (5) post-deploy (smoke tests " +
+        "on production — < 5 min). For each gate: pass rate, average runtime, false-positive " +
+        "rate. Reviewed monthly to keep the pipeline fast + reliable.",
+      examples: [
+        "Pre-commit: 4s avg, 99.8% pass rate (failures mostly linting)",
+        "PR check: 8 min avg, 97% pass rate (some flaky E2E — quarantined)",
+        "Post-deploy smoke: 3 min avg, 100% pass rate (last 30 deploys)",
+      ],
+      passCriteria:
+        "Pre-commit < 30s. PR check < 10 min. E2E < 15 min. Smoke < 5 min. " +
+        "False-positive rate < 1%.",
+      when: "continuous",
+    },
+  ],
+};
+
+// ============================================================
 // COMBINED TAXONOMY
 // ============================================================
 export const TESTING_TAXONOMY: TestingCategory[] = [
   TESTING_STRATEGIES,
   TESTING_METHODOLOGIES,
   AI_TEST_SCENARIOS,
+  NON_AI_TESTING_STRATEGIES,
+  NON_AI_TESTING_METHODOLOGIES,
+  QA_REPORTS_ARTIFACTS,
 ];
 
 export const TOTAL_TESTING_ITEMS = TESTING_TAXONOMY.reduce(

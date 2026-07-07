@@ -18,30 +18,38 @@ import {
   Lightbulb,
   ShieldCheck,
   Sparkles,
+  Boxes,
+  FileBarChart,
+  Layers,
 } from "lucide-react";
 import {
   TESTING_STRATEGIES,
   TESTING_METHODOLOGIES,
   AI_TEST_SCENARIOS,
+  NON_AI_TESTING_STRATEGIES,
+  NON_AI_TESTING_METHODOLOGIES,
+  QA_REPORTS_ARTIFACTS,
   TESTING_TAXONOMY,
   type TestingCategory,
   type TestingItem,
 } from "@/lib/marqai/testing-taxonomy";
 
 // ============================================================
-// AI TESTING METHODOLOGIES MODULE
+// QA PLAYBOOK MODULE — AI + NON-AI TESTING METHODOLOGIES
 // ============================================================
-// A comprehensive QA playbook that documents HOW to test any AI
-// platform, AI tool, or AI-powered software. Sourced from the
+// A comprehensive QA playbook that documents HOW to test ANY software
+// product — AI-powered or not — plus the deliverables a QA team
+// produces. Six pillars:
+//   1. AI Testing Strategies       — WHAT to test (AI coverage types)
+//   2. AI Testing Methodologies    — HOW to test (AI process models)
+//   3. AI Specific Test Scenarios  — Concrete AI-focused test cases
+//   4. Non-AI Testing Strategies   — WHAT to test (non-AI coverage)
+//   5. Non-AI Testing Methodologies — HOW to test (non-AI process models)
+//   6. QA Reports & Artifacts      — Deliverables produced by testing
+//
+// Use this playbook to thoroughly test any AI OR non-AI feature and
+// produce the desired output reports. Sourced from the
 // single-source-of-truth at src/lib/marqai/testing-taxonomy.ts.
-//
-// Three pillars:
-//   1. Testing Strategies     — WHAT to test (coverage types)
-//   2. Testing Methodologies  — HOW to test (process models)
-//   3. AI Specific Scenarios  — Concrete AI-focused test cases
-//
-// Use this playbook to thoroughly test any AI feature and produce
-// the desired output reports.
 
 const WHEN_LABELS: Record<TestingItem["when"], string> = {
   "pre-deploy": "Pre-Deploy",
@@ -65,11 +73,14 @@ function totalItems(): number {
 
 export function AiTestingMethodologiesModule() {
   const [query, setQuery] = useState("");
-  const [activeTab, setActiveTab] = useState("strategies");
+  const [activeTab, setActiveTab] = useState("ai-strategies");
 
-  const filteredStrategies = useMemo(() => filterItems(TESTING_STRATEGIES, query), [query]);
-  const filteredMethodologies = useMemo(() => filterItems(TESTING_METHODOLOGIES, query), [query]);
-  const filteredScenarios = useMemo(() => filterItems(AI_TEST_SCENARIOS, query), [query]);
+  const filteredAiStrategies = useMemo(() => filterItems(TESTING_STRATEGIES, query), [query]);
+  const filteredAiMethodologies = useMemo(() => filterItems(TESTING_METHODOLOGIES, query), [query]);
+  const filteredAiScenarios = useMemo(() => filterItems(AI_TEST_SCENARIOS, query), [query]);
+  const filteredNaStrategies = useMemo(() => filterItems(NON_AI_TESTING_STRATEGIES, query), [query]);
+  const filteredNaMethodologies = useMemo(() => filterItems(NON_AI_TESTING_METHODOLOGIES, query), [query]);
+  const filteredQaReports = useMemo(() => filterItems(QA_REPORTS_ARTIFACTS, query), [query]);
 
   return (
     <div className="space-y-6">
@@ -81,23 +92,35 @@ export function AiTestingMethodologiesModule() {
               <ClipboardList className="h-6 w-6 text-white" />
             </div>
             <div className="flex-1">
-              <CardTitle className="text-2xl mb-2">AI Testing Methodologies</CardTitle>
+              <CardTitle className="text-2xl mb-2">Testing Methodologies</CardTitle>
               <CardDescription className="text-base leading-relaxed">
-                A complete QA playbook for testing any AI platform, AI tool, or AI-powered software.
-                Three pillars — <strong>Testing Strategies</strong> (what to test),{" "}
-                <strong>Testing Methodologies</strong> (how to test), and{" "}
-                <strong>AI Specific Test Scenarios</strong> (concrete AI-focused test cases) —
-                together let you thoroughly test every AI feature and produce the desired output reports.
+                A complete QA playbook for testing <strong>any software product</strong> —
+                AI-powered or not. Six pillars — <strong>AI Strategies</strong> (what to test for AI),
+                <strong> AI Methodologies</strong> (how to test AI),{" "}
+                <strong>AI Scenarios</strong> (concrete AI test cases),{" "}
+                <strong>Non-AI Strategies</strong> (what to test for traditional software),{" "}
+                <strong>Non-AI Methodologies</strong> (how to test traditional software), and{" "}
+                <strong>QA Reports &amp; Artifacts</strong> (deliverables produced) — together let
+                you thoroughly test every feature and produce the desired output reports.
               </CardDescription>
             </div>
           </div>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <StatCard icon={Target} label="Strategies" value={TESTING_STRATEGIES.items.length} color="text-teal-600" />
-            <StatCard icon={Workflow} label="Methodologies" value={TESTING_METHODOLOGIES.items.length} color="text-violet-600" />
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            <StatCard icon={Target} label="AI Strategies" value={TESTING_STRATEGIES.items.length} color="text-teal-600" />
+            <StatCard icon={Workflow} label="AI Methodologies" value={TESTING_METHODOLOGIES.items.length} color="text-violet-600" />
             <StatCard icon={Bot} label="AI Scenarios" value={AI_TEST_SCENARIOS.items.length} color="text-cyan-600" />
-            <StatCard icon={CheckCircle2} label="Total Tests" value={totalItems()} color="text-emerald-600" />
+            <StatCard icon={Boxes} label="Non-AI Strategies" value={NON_AI_TESTING_STRATEGIES.items.length} color="text-amber-600" />
+            <StatCard icon={Layers} label="Non-AI Methods" value={NON_AI_TESTING_METHODOLOGIES.items.length} color="text-rose-600" />
+            <StatCard icon={FileBarChart} label="QA Reports" value={QA_REPORTS_ARTIFACTS.items.length} color="text-emerald-600" />
+          </div>
+          <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
+            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+            <span>
+              <strong>{totalItems()}</strong> total tests across all six pillars — the most
+              comprehensive QA playbook in any Marqai module.
+            </span>
           </div>
         </CardContent>
       </Card>
@@ -106,7 +129,7 @@ export function AiTestingMethodologiesModule() {
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="Search all tests, examples, or pass criteria…"
+          placeholder="Search all tests, examples, or pass criteria across AI + non-AI + QA reports…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           className="pl-10 h-11"
@@ -115,48 +138,90 @@ export function AiTestingMethodologiesModule() {
 
       {/* TABS */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="strategies" className="gap-2">
-            <Target className="h-4 w-4" />
-            <span>Testing Strategies</span>
-            <Badge variant="secondary" className="ml-1">{filteredStrategies.length}</Badge>
+        <TabsList className="grid w-full grid-cols-3 md:grid-cols-6 h-auto">
+          <TabsTrigger value="ai-strategies" className="flex items-center gap-1.5 py-2 text-xs">
+            <Target className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">AI Strategies</span>
+            <Badge variant="secondary" className="ml-1">{filteredAiStrategies.length}</Badge>
           </TabsTrigger>
-          <TabsTrigger value="methodologies" className="gap-2">
-            <Workflow className="h-4 w-4" />
-            <span>Testing Methodologies</span>
-            <Badge variant="secondary" className="ml-1">{filteredMethodologies.length}</Badge>
+          <TabsTrigger value="ai-methodologies" className="flex items-center gap-1.5 py-2 text-xs">
+            <Workflow className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">AI Methods</span>
+            <Badge variant="secondary" className="ml-1">{filteredAiMethodologies.length}</Badge>
           </TabsTrigger>
-          <TabsTrigger value="scenarios" className="gap-2">
-            <Bot className="h-4 w-4" />
-            <span>AI Specific Scenarios</span>
-            <Badge variant="secondary" className="ml-1">{filteredScenarios.length}</Badge>
+          <TabsTrigger value="ai-scenarios" className="flex items-center gap-1.5 py-2 text-xs">
+            <Bot className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">AI Scenarios</span>
+            <Badge variant="secondary" className="ml-1">{filteredAiScenarios.length}</Badge>
+          </TabsTrigger>
+          <TabsTrigger value="non-ai-strategies" className="flex items-center gap-1.5 py-2 text-xs">
+            <Boxes className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Non-AI Strategies</span>
+            <Badge variant="secondary" className="ml-1">{filteredNaStrategies.length}</Badge>
+          </TabsTrigger>
+          <TabsTrigger value="non-ai-methodologies" className="flex items-center gap-1.5 py-2 text-xs">
+            <Layers className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Non-AI Methods</span>
+            <Badge variant="secondary" className="ml-1">{filteredNaMethodologies.length}</Badge>
+          </TabsTrigger>
+          <TabsTrigger value="qa-reports" className="flex items-center gap-1.5 py-2 text-xs">
+            <FileBarChart className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">QA Reports</span>
+            <Badge variant="secondary" className="ml-1">{filteredQaReports.length}</Badge>
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="strategies" className="mt-4">
+        <TabsContent value="ai-strategies" className="mt-4">
           <CategoryBlock
             category={TESTING_STRATEGIES}
-            filteredItems={filteredStrategies}
+            filteredItems={filteredAiStrategies}
             icon={Target}
             accent="teal"
           />
         </TabsContent>
 
-        <TabsContent value="methodologies" className="mt-4">
+        <TabsContent value="ai-methodologies" className="mt-4">
           <CategoryBlock
             category={TESTING_METHODOLOGIES}
-            filteredItems={filteredMethodologies}
+            filteredItems={filteredAiMethodologies}
             icon={Workflow}
             accent="violet"
           />
         </TabsContent>
 
-        <TabsContent value="scenarios" className="mt-4">
+        <TabsContent value="ai-scenarios" className="mt-4">
           <CategoryBlock
             category={AI_TEST_SCENARIOS}
-            filteredItems={filteredScenarios}
+            filteredItems={filteredAiScenarios}
             icon={Bot}
             accent="cyan"
+          />
+        </TabsContent>
+
+        <TabsContent value="non-ai-strategies" className="mt-4">
+          <CategoryBlock
+            category={NON_AI_TESTING_STRATEGIES}
+            filteredItems={filteredNaStrategies}
+            icon={Boxes}
+            accent="amber"
+          />
+        </TabsContent>
+
+        <TabsContent value="non-ai-methodologies" className="mt-4">
+          <CategoryBlock
+            category={NON_AI_TESTING_METHODOLOGIES}
+            filteredItems={filteredNaMethodologies}
+            icon={Layers}
+            accent="rose"
+          />
+        </TabsContent>
+
+        <TabsContent value="qa-reports" className="mt-4">
+          <CategoryBlock
+            category={QA_REPORTS_ARTIFACTS}
+            filteredItems={filteredQaReports}
+            icon={FileBarChart}
+            accent="emerald"
           />
         </TabsContent>
       </Tabs>
@@ -180,10 +245,10 @@ function StatCard({
   color: string;
 }) {
   return (
-    <div className="rounded-lg border bg-card p-4 text-center">
-      <Icon className={`h-6 w-6 mx-auto mb-2 ${color}`} />
-      <div className="text-2xl font-bold">{value}</div>
-      <div className="text-xs text-muted-foreground uppercase tracking-wider mt-1">{label}</div>
+    <div className="rounded-lg border bg-card p-3 text-center">
+      <Icon className={`h-5 w-5 mx-auto mb-1.5 ${color}`} />
+      <div className="text-xl font-bold">{value}</div>
+      <div className="text-[10px] text-muted-foreground uppercase tracking-wider mt-0.5">{label}</div>
     </div>
   );
 }
@@ -197,12 +262,15 @@ function CategoryBlock({
   category: TestingCategory;
   filteredItems: TestingItem[];
   icon: React.ComponentType<{ className?: string }>;
-  accent: "teal" | "violet" | "cyan";
+  accent: "teal" | "violet" | "cyan" | "amber" | "rose" | "emerald";
 }) {
   const accentClasses = {
     teal: "bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300",
     violet: "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300",
     cyan: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300",
+    amber: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
+    rose: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300",
+    emerald: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300",
   }[accent];
 
   return (

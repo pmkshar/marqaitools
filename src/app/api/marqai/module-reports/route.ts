@@ -16,7 +16,7 @@
 import { NextResponse } from "next/server";
 import { getZai, getDefaultModel } from "@/lib/zai";
 import { extractChatContent } from "@/lib/zai-response";
-import { TESTING_STRATEGIES, TESTING_METHODOLOGIES, AI_TEST_SCENARIOS } from "@/lib/marqai/testing-taxonomy";
+import { TESTING_STRATEGIES, TESTING_METHODOLOGIES, AI_TEST_SCENARIOS, NON_AI_TESTING_STRATEGIES, NON_AI_TESTING_METHODOLOGIES, QA_REPORTS_ARTIFACTS } from "@/lib/marqai/testing-taxonomy";
 import type { ModuleId } from "@/lib/marqai/types";
 
 export const runtime = "nodejs";
@@ -181,6 +181,17 @@ const MODULE_REPORTS: Omit<ModuleReport, "aiIntegrationStatus" | "lastTestedAt">
     notes: "Calls /api/marqai/generate-leads. CAN-SPAM: emails are first.last@domain pattern, must be verified before sending.",
   },
   {
+    moduleId: "sales-agents",
+    moduleName: "AI Sales Agents",
+    category: "AI-powered",
+    functionalCoverage: 91,
+    smokeTestStatus: "pass",
+    openIssues: 1,
+    applicableStrategies: ["req-risk-based", "smoke-post-deploy", "functional", "regression", "integration", "ai-model-validation", "ai-prompt-hallucination", "ai-fallback"],
+    applicableScenarios: ["chatbot-correctness", "prompt-injection", "personalization", "recommendation-relevance", "recommendation-latency", "ai-fallback"],
+    notes: "Six agents (Qualifier/Outreach/Conversation/Discovery/Deal Coach/Objection) call /api/marqai/sales/* routes. BANT/MEDDIC/SPIN/Challenger/Consultative methodologies. Automation: auto-qualify on lead creation, sequence auto-enrollment, reply-triggered Deal Coach, objection triage.",
+  },
+  {
     moduleId: "whatsapp",
     moduleName: "WhatsApp Marketing",
     category: "AI-powered",
@@ -321,6 +332,9 @@ export async function GET() {
     strategiesApplied: TESTING_STRATEGIES.items.length,
     methodologiesApplied: TESTING_METHODOLOGIES.items.length,
     scenariosApplied: AI_TEST_SCENARIOS.items.length,
+    nonAiStrategiesApplied: NON_AI_TESTING_STRATEGIES.items.length,
+    nonAiMethodologiesApplied: NON_AI_TESTING_METHODOLOGIES.items.length,
+    qaReportsApplied: QA_REPORTS_ARTIFACTS.items.length,
   };
 
   return NextResponse.json({
@@ -346,6 +360,24 @@ export async function GET() {
         name: s.name,
         summary: s.summary,
         when: s.when,
+      })),
+      nonAiStrategies: NON_AI_TESTING_STRATEGIES.items.map((s) => ({
+        id: s.id,
+        name: s.name,
+        summary: s.summary,
+        when: s.when,
+      })),
+      nonAiMethodologies: NON_AI_TESTING_METHODOLOGIES.items.map((m) => ({
+        id: m.id,
+        name: m.name,
+        summary: m.summary,
+        when: m.when,
+      })),
+      qaReports: QA_REPORTS_ARTIFACTS.items.map((r) => ({
+        id: r.id,
+        name: r.name,
+        summary: r.summary,
+        when: r.when,
       })),
     },
   });

@@ -30,6 +30,7 @@ import { UserSopDoc } from "./wiki-docs/user-sop";
 import { RolesDoc } from "./wiki-docs/roles";
 import { BillingDoc } from "./wiki-docs/billing";
 import { ApiReferenceDoc } from "./wiki-docs/api-reference";
+import { SalesAgentsManualDoc } from "./wiki-docs/sales-agents-manual";
 
 const DOCS: DocMeta[] = [
   {
@@ -94,6 +95,16 @@ const DOCS: DocMeta[] = [
     icon: FileText,
     color: "slate",
     body: <ApiReferenceDoc />,
+  },
+  {
+    slug: "sales-agents-manual",
+    title: "AI Sales Agents — Manual",
+    audience: "Sales · RevOps · Founders · AEs",
+    description:
+      "How to use the AI Sales Agents module — six agents, five methodologies, automation, advantages, and a full lead-to-close worked example.",
+    icon: FileText,
+    color: "violet",
+    body: <SalesAgentsManualDoc />,
   },
 ];
 
