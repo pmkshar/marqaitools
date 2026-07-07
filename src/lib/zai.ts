@@ -45,27 +45,34 @@ const DEFAULT_BASE_URL = "https://api.z.ai/api/paas/v4";
 // or glm-4-plus for higher quality.
 const DEFAULT_MODEL = "glm-4.5-flash";
 
-// Default model for image generation. Z.AI image API also requires an
-// explicit model. Override with ZAI_IMAGE_MODEL env var.
+// Default model for image generation. The Z.AI SDK type signature marks
+// `model` as OPTIONAL — see CreateImageGenerationBody in
+// node_modules/z-ai-web-dev-sdk/dist/index.d.ts. The official SDK README
+// example also omits it. When omitted, Z.AI uses whatever image backend
+// is configured for your account.
 //
-// IMPORTANT: Like the chat models, Z.AI international (api.z.ai) and
-// BigModel China (open.bigmodel.cn) have DIFFERENT image model lineups:
-//   - cogview-3-flash    — BigModel China ONLY. Returns code 1211
-//                          "Unknown Model" on z.ai international.
-//   - cogview-4-flash    — FREE tier on z.ai international. Use this.
-//   - cogview-4          — paid, higher quality, available on both.
-//   - cogview-3-plus     — paid, available on both.
+// IMPORTANT: Z.AI international (api.z.ai) and BigModel China
+// (open.bigmodel.cn) have DIFFERENT image model lineups, AND not every
+// model is available on every Z.AI plan tier. Hardcoding any specific
+// model name risks returning code 1211 "Unknown Model" for some users:
+//   - cogview-3-flash    — BigModel China ONLY. Fails on z.ai international.
+//   - cogview-4-flash    — Works on some z.ai plans but NOT all — we
+//                          observed 1211 on a user's production key even
+//                          though it worked on the sandbox key.
+//   - cogview-4          — paid, available on most plans.
+//   - cogview-3-plus     — paid, available on most plans.
 //
-// We default to cogview-4-flash because it works on z.ai international
-// (which is the deployment at api.z.ai). If you have a paid plan,
-// set ZAI_IMAGE_MODEL=cogview-4 or cogview-3-plus for higher quality.
+// STRATEGY: Default to EMPTY (omit the model field). This makes Z.AI pick
+// whatever default image model is available for the account, which works
+// across all plans. If you want to pin a specific model, set ZAI_IMAGE_MODEL
+// in your Vercel env vars.
 //
-// ALSO NOTE: The Z.AI SDK downloads the image and returns it as base64,
-// NOT as a URL. See node_modules/z-ai-web-dev-sdk/dist/index.js —
+// ALSO NOTE: The Z.AI SDK downloads the generated image and returns it as
+// base64, NOT as a URL. See node_modules/z-ai-web-dev-sdk/dist/index.js —
 // `createImageGeneration` replaces `item.url` with `item.base64` before
 // returning. Routes must therefore read `result.data[0].base64`, not
 // `result.data[0].url`.
-const DEFAULT_IMAGE_MODEL = "cogview-4-flash";
+const DEFAULT_IMAGE_MODEL = "";
 
 /**
  * Returns the model name to pass to chat.completions.create().

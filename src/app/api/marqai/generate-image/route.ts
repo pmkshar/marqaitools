@@ -17,11 +17,21 @@ export async function POST(req: NextRequest) {
     }
 
     const zai = await getZai();
-    const result: any = await zai.images.generations.create({
-      model: getDefaultImageModel(),
-      prompt,
-      size: size as any,
-    });
+
+    // Build the request body. The `model` field is OPTIONAL in the Z.AI SDK
+    // (per the type signature and the official README example). Different
+    // Z.AI plans expose different image models — cogview-3-flash,
+    // cogview-4-flash, cogview-4 etc. — and not all are available on every
+    // account. If ZAI_IMAGE_MODEL env var is set, honor it; otherwise OMIT
+    // the model field entirely and let Z.AI pick the account's default.
+    // Passing an unavailable model name returns code 1211 "Unknown Model".
+    const imageModel = getDefaultImageModel();
+    const requestBody: any = { prompt, size: size as any };
+    if (imageModel) {
+      requestBody.model = imageModel;
+    }
+
+    const result: any = await zai.images.generations.create(requestBody);
 
     // The Z.AI SDK downloads the generated image and returns it as base64
     // (NOT a URL). Read .base64 first; fall back to .url only if the SDK

@@ -34,11 +34,17 @@ export async function POST(req: NextRequest) {
     // ---------- AI MODE ----------
     const prompt = buildLogoPrompt(body);
     const zai = await getZai();
-    const result: any = await zai.images.generations.create({
-      model: getDefaultImageModel(),
-      prompt,
-      size: "1024x1024",
-    });
+
+    // The `model` field is OPTIONAL in the Z.AI SDK. If ZAI_IMAGE_MODEL env
+    // var is set, honor it; otherwise OMIT the field and let Z.AI pick the
+    // account's default image model. Hardcoding a model name risks 1211
+    // "Unknown Model" errors on plans that don't expose that specific model.
+    const imageModel = getDefaultImageModel();
+    const requestBody: any = { prompt, size: "1024x1024" };
+    if (imageModel) {
+      requestBody.model = imageModel;
+    }
+    const result: any = await zai.images.generations.create(requestBody);
 
     // The Z.AI SDK returns images as base64, not URLs.
     const item = result?.data?.[0];
