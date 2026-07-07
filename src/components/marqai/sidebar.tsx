@@ -25,6 +25,8 @@ import {
   BarChart3,
   MessageCircle,
   Bot,
+  Bug,
+  Boxes,
 } from "lucide-react";
 import { useMarqai } from "@/lib/marqai/store";
 import { classNames } from "@/lib/marqai/utils";
@@ -54,7 +56,9 @@ const NAV: {
   { id: "whatsapp",         label: "WhatsApp Marketing", icon: MessageCircle,  group: "Outreach",       description: "Broadcasts, templates, contacts & API" },
   { id: "analyzer",         label: "Website Analyzer",  icon: Globe,           group: "Analysis",       description: "Deep portal analysis" },
   { id: "ai-testing",               label: "AI Tool Testing",          icon: FlaskConical,    group: "Analysis",       description: "Grade any AI tool" },
-  { id: "ai-testing-methodologies", label: "Testing Methodologies",    icon: ClipboardList,  group: "Analysis",       description: "QA playbook for any AI platform" },
+  { id: "ai-testing-methodologies", label: "AI Testing Methodologies", icon: ClipboardList,  group: "Analysis",       description: "QA playbook for any AI platform" },
+  { id: "non-ai-testing",           label: "Non-AI Testing Methods",   icon: Boxes,          group: "Analysis",       description: "QA playbook for non-AI software" },
+  { id: "bug-tracker",              label: "Bug Tracker",              icon: Bug,            group: "Analysis",       description: "Bugzilla-style defect tracker (AI + non-AI)" },
   { id: "team",                     label: "Team Management",          icon: Users,          group: "Administration", description: "Members & seats" },
   { id: "roles",                    label: "Role Master",              icon: Shield,         group: "Administration", description: "Create custom roles" },
   { id: "billing",                  label: "Subscription",             icon: CreditCard,     group: "Administration", description: "Plan & invoices" },

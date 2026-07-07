@@ -42,6 +42,12 @@ import type {
   DealCoachingSession,
   ObjectionResponse,
   DiscoveryQuestionSet,
+  Bug,
+  BugComment,
+  BugStatus,
+  BugSeverity,
+  BugPriority,
+  BugResolution,
 } from "./types";
 import {
   seedAccounts,
@@ -62,6 +68,7 @@ import {
   seedOutreachSequences,
   seedDealCoachingSessions,
   seedObjectionResponses,
+  seedBugs,
 } from "./mock-data";
 import {
   DEMO_ORG,
@@ -234,6 +241,18 @@ interface MarqaiState {
   discoveryQuestionSets: DiscoveryQuestionSet[];
   addDiscoveryQuestionSet: (d: DiscoveryQuestionSet) => void;
   deleteDiscoveryQuestionSet: (id: string) => void;
+
+  // ---------- BUG TRACKER ----------
+  bugs: Bug[];
+  addBug: (b: Bug) => void;
+  updateBug: (id: string, patch: Partial<Bug>) => void;
+  deleteBug: (id: string) => void;
+  addBugComment: (bugId: string, comment: BugComment) => void;
+  setBugStatus: (bugId: string, status: BugStatus, actorName: string, actorRole?: string) => void;
+  setBugSeverity: (bugId: string, severity: BugSeverity, actorName: string, actorRole?: string) => void;
+  setBugPriority: (bugId: string, priority: BugPriority, actorName: string, actorRole?: string) => void;
+  setBugResolution: (bugId: string, resolution: BugResolution, actorName: string, actorRole?: string) => void;
+  assignBug: (bugId: string, assigneeUserId: string, assigneeName: string, actorName: string, actorRole?: string) => void;
 }
 
 export const useMarqai = create<MarqaiState>()(
@@ -655,6 +674,164 @@ export const useMarqai = create<MarqaiState>()(
         set((s) => ({
           discoveryQuestionSets: s.discoveryQuestionSets.filter((x) => x.id !== id),
         })),
+
+      // ---------- BUG TRACKER ----------
+      bugs: seedBugs,
+      addBug: (b) => set((s) => ({ bugs: [b, ...s.bugs] })),
+      updateBug: (id, patch) =>
+        set((s) => ({
+          bugs: s.bugs.map((b) =>
+            b.id === id ? { ...b, ...patch, updatedAt: new Date().toISOString() } : b,
+          ),
+        })),
+      deleteBug: (id) =>
+        set((s) => ({ bugs: s.bugs.filter((b) => b.id !== id) })),
+      addBugComment: (bugId, comment) =>
+        set((s) => ({
+          bugs: s.bugs.map((b) =>
+            b.id === bugId
+              ? { ...b, comments: [...b.comments, comment], updatedAt: new Date().toISOString() }
+              : b,
+          ),
+        })),
+      setBugStatus: (bugId, status, actorName, actorRole) =>
+        set((s) => {
+          const bug = s.bugs.find((b) => b.id === bugId);
+          if (!bug) return s;
+          const fromStatus = bug.status;
+          const now = new Date().toISOString();
+          const comment: BugComment = {
+            id: `c-${Date.now()}`,
+            authorName: actorName,
+            authorRole: actorRole,
+            body: `Status changed from ${fromStatus} → ${status}`,
+            changeKind: "status",
+            changeFrom: fromStatus,
+            changeTo: status,
+            createdAt: now,
+          };
+          return {
+            bugs: s.bugs.map((b) =>
+              b.id === bugId
+                ? {
+                    ...b,
+                    status,
+                    closedAt:
+                      status === "closed" || status === "wont_fix" || status === "duplicate"
+                        ? now
+                        : b.closedAt,
+                    comments: [...b.comments, comment],
+                    updatedAt: now,
+                  }
+                : b,
+            ),
+          };
+        }),
+      setBugSeverity: (bugId, severity, actorName, actorRole) =>
+        set((s) => {
+          const bug = s.bugs.find((b) => b.id === bugId);
+          if (!bug) return s;
+          const from = bug.severity;
+          const now = new Date().toISOString();
+          const comment: BugComment = {
+            id: `c-${Date.now()}`,
+            authorName: actorName,
+            authorRole: actorRole,
+            body: `Severity changed from ${from} → ${severity}`,
+            changeKind: "severity",
+            changeFrom: from,
+            changeTo: severity,
+            createdAt: now,
+          };
+          return {
+            bugs: s.bugs.map((b) =>
+              b.id === bugId
+                ? { ...b, severity, comments: [...b.comments, comment], updatedAt: now }
+                : b,
+            ),
+          };
+        }),
+      setBugPriority: (bugId, priority, actorName, actorRole) =>
+        set((s) => {
+          const bug = s.bugs.find((b) => b.id === bugId);
+          if (!bug) return s;
+          const from = bug.priority;
+          const now = new Date().toISOString();
+          const comment: BugComment = {
+            id: `c-${Date.now()}`,
+            authorName: actorName,
+            authorRole: actorRole,
+            body: `Priority changed from ${from} → ${priority}`,
+            changeKind: "priority",
+            changeFrom: from,
+            changeTo: priority,
+            createdAt: now,
+          };
+          return {
+            bugs: s.bugs.map((b) =>
+              b.id === bugId
+                ? { ...b, priority, comments: [...b.comments, comment], updatedAt: now }
+                : b,
+            ),
+          };
+        }),
+      setBugResolution: (bugId, resolution, actorName, actorRole) =>
+        set((s) => {
+          const bug = s.bugs.find((b) => b.id === bugId);
+          if (!bug) return s;
+          const from = bug.resolution;
+          const now = new Date().toISOString();
+          const comment: BugComment = {
+            id: `c-${Date.now()}`,
+            authorName: actorName,
+            authorRole: actorRole,
+            body: `Resolution changed from ${from} → ${resolution}`,
+            changeKind: "resolution",
+            changeFrom: from,
+            changeTo: resolution,
+            createdAt: now,
+          };
+          return {
+            bugs: s.bugs.map((b) =>
+              b.id === bugId
+                ? { ...b, resolution, comments: [...b.comments, comment], updatedAt: now }
+                : b,
+            ),
+          };
+        }),
+      assignBug: (bugId, assigneeUserId, assigneeName, actorName, actorRole) =>
+        set((s) => {
+          const bug = s.bugs.find((b) => b.id === bugId);
+          if (!bug) return s;
+          const fromName = bug.assigneeName ?? "Unassigned";
+          const now = new Date().toISOString();
+          const comment: BugComment = {
+            id: `c-${Date.now()}`,
+            authorName: actorName,
+            authorRole: actorRole,
+            body: `Assignee changed from ${fromName} → ${assigneeName}`,
+            changeKind: "assignee",
+            changeFrom: fromName,
+            changeTo: assigneeName,
+            createdAt: now,
+          };
+          const newStatus: BugStatus =
+            bug.status === "new" || bug.status === "unconfirmed" ? "assigned" : bug.status;
+          return {
+            bugs: s.bugs.map((b) =>
+              b.id === bugId
+                ? {
+                    ...b,
+                    assigneeUserId,
+                    assigneeName,
+                    status: newStatus,
+                    comments: [...b.comments, comment],
+                    updatedAt: now,
+                  }
+                : b,
+            ),
+          };
+        }),
     }),
     {
       name: "marqai-session-v2",
@@ -674,6 +851,7 @@ export const useMarqai = create<MarqaiState>()(
         dealCoachingSessions: s.dealCoachingSessions,
         objectionResponses: s.objectionResponses,
         discoveryQuestionSets: s.discoveryQuestionSets,
+        bugs: s.bugs,
         whatsappTemplates: s.whatsappTemplates,
         whatsappContacts: s.whatsappContacts,
         whatsappContactLists: s.whatsappContactLists,

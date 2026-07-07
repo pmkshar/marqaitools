@@ -15,6 +15,8 @@ export type ModuleId =
   | "analyzer"
   | "ai-testing"
   | "ai-testing-methodologies"
+  | "non-ai-testing"
+  | "bug-tracker"
   | "logo-builder"
   | "website-builder"
   | "leads-generator"
@@ -800,4 +802,130 @@ export interface DiscoveryQuestionSet {
   methodology: SalesMethodology;
   questions: { category: string; question: string; goal: string }[];
   createdAt: string;
+}
+
+// ============================================================
+// BUG TRACKER — Bugzilla-style issue tracker
+// ------------------------------------------------------------
+// Used by both the AI Testing and Non-AI Testing modules to
+// log, triage, assign, and resolve defects found during QA.
+// Every bug is linked to (a) a product type (AI or non-AI),
+// (b) a specific testing methodology that surfaced it, and
+// (c) optionally a specific test case id from the taxonomy.
+// Developers get RBAC-gated access for debugging.
+// ============================================================
+
+export type BugProductType = "ai" | "non-ai";
+
+export type BugSeverity = "blocker" | "critical" | "major" | "normal" | "minor" | "trivial";
+export type BugPriority = "P0" | "P1" | "P2" | "P3" | "P4";
+export type BugStatus =
+  | "unconfirmed"
+  | "new"
+  | "assigned"
+  | "in_progress"
+  | "fixed"
+  | "verified"
+  | "reopened"
+  | "closed"
+  | "wont_fix"
+  | "duplicate";
+
+export type BugResolution =
+  | "open"
+  | "fixed"
+  | "duplicate"
+  | "wont_fix"
+  | "works_as_designed"
+  | "cannot_reproduce"
+  | "invalid";
+
+export interface BugComment {
+  id: string;
+  authorName: string;
+  authorRole?: string;
+  body: string;
+  /** Set when this comment is a status / assignee / severity change. */
+  changeKind?: "status" | "assignee" | "severity" | "priority" | "resolution";
+  changeFrom?: string;
+  changeTo?: string;
+  createdAt: string;
+}
+
+export interface BugAttachment {
+  id: string;
+  filename: string;
+  mimeType: string;
+  /** Data URL or external URL. */
+  url: string;
+  uploadedBy: string;
+  uploadedAt: string;
+}
+
+export interface Bug {
+  id: string;
+  /** Human-readable bug id, e.g. BUG-1042. */
+  displayId: string;
+  title: string;
+  description: string;
+  /** Steps to reproduce, as a numbered list. */
+  reproSteps: string[];
+  /** Expected behavior. */
+  expectedBehavior: string;
+  /** Actual behavior. */
+  actualBehavior: string;
+  /** AI vs non-AI product under test. */
+  productType: BugProductType;
+  /** Module the bug was found in (free text — could be Marqai module or external product name). */
+  module: string;
+  /** Environment: dev / staging / production / other. */
+  environment: "dev" | "staging" | "production" | "uat" | "other";
+  /** Browser/OS/device where the bug was observed. */
+  environmentDetails?: string;
+  /** ID of the testing methodology that surfaced this bug (from testing-taxonomy). */
+  methodologyId?: string;
+  /** Methodology category: which of the 6 pillars it came from. */
+  methodologyCategory?:
+    | "ai-strategies"
+    | "ai-methodologies"
+    | "ai-scenarios"
+    | "non-ai-strategies"
+    | "non-ai-methodologies"
+    | "qa-reports";
+  /** Optional test case id from the taxonomy. */
+  testCaseId?: string;
+  severity: BugSeverity;
+  priority: BugPriority;
+  status: BugStatus;
+  resolution: BugResolution;
+  /** Assignee user id (references TeamMember.userId) — empty if unassigned. */
+  assigneeUserId?: string;
+  assigneeName?: string;
+  /** Reporter user id + name. */
+  reporterUserId: string;
+  reporterName: string;
+  /** CC list of user ids. */
+  ccUserIds?: string[];
+  /** Linked bug ids (depends-on / blocks / relates-to). */
+  dependsOn?: string[];
+  blocks?: string[];
+  /** Tags for free-form categorization. */
+  tags: string[];
+  /** URL of any external issue (Jira / GitHub / Linear). */
+  externalIssueUrl?: string;
+  comments: BugComment[];
+  attachments: BugAttachment[];
+  createdAt: string;
+  updatedAt: string;
+  closedAt?: string;
+}
+
+/** Activity-feed entry derived from bug history (for the audit log tab). */
+export interface BugActivityEntry {
+  bugId: string;
+  bugDisplayId: string;
+  bugTitle: string;
+  action: string;
+  actorName: string;
+  timestamp: string;
 }

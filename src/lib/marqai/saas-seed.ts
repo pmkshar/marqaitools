@@ -54,6 +54,8 @@ export const DEMO_ROLES: Role[] = [
       "whatsapp": "manage",
       "ai-testing": "none",
       "ai-testing-methodologies": "view",
+      "non-ai-testing": "view",
+      "bug-tracker": "execute",
       reports: "view",
       team: "none",
       roles: "none",
@@ -144,6 +146,15 @@ export const DEMO_USERS: DemoUser[] = [
     lastLoginAt: "2026-07-04T11:30:00.000Z",
   },
   {
+    id: "user-dev1",
+    email: "dev@acme-marketing.com",
+    password: "demo1234",
+    name: "Aditya Verma",
+    jobTitle: "Senior Engineer",
+    roleName: "Developer",
+    lastLoginAt: "2026-07-05T06:45:00.000Z",
+  },
+  {
     id: "user-nikhil",
     email: "nikhil@acme-marketing.com",
     password: "demo1234",
@@ -186,6 +197,7 @@ export const DEMO_TEAMS: Team[] = [
   { id: "team-2", name: "Paid Social Pod", description: "Runs paid ads on LinkedIn, IG, TikTok, and Meta.",         memberCount: 4 },
   { id: "team-3", name: "Email Pod",       description: "Lifecycle campaigns, newsletters, drip flows.",            memberCount: 2 },
   { id: "team-4", name: "AI QA Pod",       description: "Tests and benchmarks AI tools for client deliverables.",   memberCount: 2 },
+  { id: "team-5", name: "Engineering Pod", description: "Debugs bugs, ships fixes, maintains infrastructure.",     memberCount: 3 },
 ];
 
 export const DEMO_TEAM_MEMBERS: TeamMember[] = DEMO_USERS.map((u, idx) => {
@@ -220,7 +232,7 @@ export const DEMO_SUBSCRIPTION: Subscription = {
   currentPeriodStart: "2026-07-01T00:00:00.000Z",
   currentPeriodEnd: "2026-08-01T00:00:00.000Z",
   trialEndsAt: "2025-09-26T00:00:00.000Z",
-  seatsUsed: 8,
+  seatsUsed: 9,
   seatsLimit: scalePlan.seats,
   aiCreditsUsed: 7142,
   aiCreditsLimit: scalePlan.aiCredits,

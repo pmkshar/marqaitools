@@ -4,40 +4,46 @@ import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import {
   ClipboardList,
   Search,
-  Target,
-  Workflow,
-  Bot,
+  Boxes,
+  Layers,
+  FileBarChart,
   CheckCircle2,
   Clock,
   Lightbulb,
   ShieldCheck,
   Sparkles,
+  Bug,
 } from "lucide-react";
+import { useMarqai } from "@/lib/marqai/store";
 import {
-  TESTING_STRATEGIES,
-  TESTING_METHODOLOGIES,
-  AI_TEST_SCENARIOS,
+  NON_AI_TESTING_STRATEGIES,
+  NON_AI_TESTING_METHODOLOGIES,
+  QA_REPORTS_ARTIFACTS,
   type TestingCategory,
   type TestingItem,
 } from "@/lib/marqai/testing-taxonomy";
 
 // ============================================================
-// AI TESTING METHODOLOGIES MODULE — AI-only QA playbook
+// NON-AI TESTING METHODOLOGIES MODULE
 // ============================================================
-// Three pillars focused exclusively on AI-powered software:
-//   1. AI Testing Strategies     — WHAT to test (AI coverage types)
-//   2. AI Testing Methodologies  — HOW to test (AI process models)
-//   3. AI Specific Test Scenarios — Concrete AI-focused test cases
+// Separate QA playbook for any NON-AI software product — web apps,
+// mobile apps, desktop apps, APIs, e-commerce sites, ERP/CRM,
+// billing platforms, games, IoT firmware, etc. Three pillars:
 //
-// Non-AI testing strategies, methodologies, and QA reports live
-// in the SEPARATE 'Non-AI Testing Methodologies' module to avoid
-// confusion between AI and non-AI testing.
+//   1. Non-AI Testing Strategies    — WHAT to test (coverage types)
+//   2. Non-AI Testing Methodologies — HOW to test (process models)
+//   3. QA Reports & Artifacts       — deliverables produced by QA
+//
+// Kept intentionally SEPARATE from the AI Testing Methodologies
+// module so users testing traditional software aren't drowned in
+// AI-specific items. Bugs found via these methodologies are logged
+// in the Bug Tracker module.
 
 const WHEN_LABELS: Record<TestingItem["when"], string> = {
   "pre-deploy": "Pre-Deploy",
@@ -57,56 +63,66 @@ const WHEN_COLORS: Record<TestingItem["when"], string> = {
 
 function totalItems(): number {
   return (
-    TESTING_STRATEGIES.items.length +
-    TESTING_METHODOLOGIES.items.length +
-    AI_TEST_SCENARIOS.items.length
+    NON_AI_TESTING_STRATEGIES.items.length +
+    NON_AI_TESTING_METHODOLOGIES.items.length +
+    QA_REPORTS_ARTIFACTS.items.length
   );
 }
 
-export function AiTestingMethodologiesModule() {
+export function NonAiTestingModule() {
   const [query, setQuery] = useState("");
-  const [activeTab, setActiveTab] = useState("ai-strategies");
+  const [activeTab, setActiveTab] = useState("non-ai-strategies");
+  const setActiveModule = useMarqai((s) => s.setActiveModule);
 
-  const filteredStrategies = useMemo(() => filterItems(TESTING_STRATEGIES, query), [query]);
-  const filteredMethodologies = useMemo(() => filterItems(TESTING_METHODOLOGIES, query), [query]);
-  const filteredScenarios = useMemo(() => filterItems(AI_TEST_SCENARIOS, query), [query]);
+  const filteredStrategies = useMemo(() => filterItems(NON_AI_TESTING_STRATEGIES, query), [query]);
+  const filteredMethodologies = useMemo(() => filterItems(NON_AI_TESTING_METHODOLOGIES, query), [query]);
+  const filteredQaReports = useMemo(() => filterItems(QA_REPORTS_ARTIFACTS, query), [query]);
 
   return (
     <div className="space-y-6">
       {/* HERO */}
-      <Card className="border-teal-200 bg-gradient-to-br from-teal-50 via-white to-cyan-50 dark:border-teal-900 dark:from-teal-950/40 dark:via-background dark:to-cyan-950/40">
+      <Card className="border-amber-200 bg-gradient-to-br from-amber-50 via-white to-rose-50 dark:border-amber-900 dark:from-amber-950/40 dark:via-background dark:to-rose-950/40">
         <CardHeader>
           <div className="flex items-start gap-4">
-            <div className="h-12 w-12 rounded-xl marqai-gradient flex items-center justify-center shadow-md shrink-0">
+            <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-amber-500 to-rose-500 flex items-center justify-center shadow-md shrink-0">
               <ClipboardList className="h-6 w-6 text-white" />
             </div>
             <div className="flex-1">
-              <CardTitle className="text-2xl mb-2">AI Testing Methodologies</CardTitle>
+              <CardTitle className="text-2xl mb-2">Non-AI Testing Methodologies</CardTitle>
               <CardDescription className="text-base leading-relaxed">
-                A complete QA playbook for testing <strong>any AI platform, AI tool, or AI-powered software</strong>.
-                Three pillars — <strong>AI Testing Strategies</strong> (what to test),{" "}
-                <strong>AI Testing Methodologies</strong> (how to test), and{" "}
-                <strong>AI Specific Test Scenarios</strong> (concrete AI-focused test cases) — together let
-                you thoroughly test every AI feature and produce the desired output reports.
+                A complete QA playbook for testing <strong>any non-AI software product</strong> —
+                web apps, mobile apps, desktop apps, APIs, e-commerce sites, ERP/CRM systems,
+                billing platforms, games, IoT firmware. Three pillars —{" "}
+                <strong>Non-AI Testing Strategies</strong> (what to test),{" "}
+                <strong>Non-AI Testing Methodologies</strong> (how to test), and{" "}
+                <strong>QA Reports &amp; Artifacts</strong> (deliverables produced) — together let
+                you thoroughly test any traditional software and produce audit-ready QA reports.
               </CardDescription>
               <p className="text-xs text-muted-foreground mt-3">
-                Looking to test <strong>non-AI software</strong>? Use the separate{" "}
-                <strong>&ldquo;Non-AI Testing Methodologies&rdquo;</strong> module in the sidebar.
-                Bug tracking lives in the <strong>&ldquo;Bug Tracker&rdquo;</strong> module.
+                Testing <strong>AI software</strong>? Use the separate{" "}
+                <strong>&ldquo;AI Testing Methodologies&rdquo;</strong> module. Found a bug?{" "}
+                <Button
+                  variant="link"
+                  className="h-auto p-0 text-xs underline"
+                  onClick={() => setActiveModule("bug-tracker")}
+                >
+                  Log it in the Bug Tracker →
+                </Button>
               </p>
             </div>
           </div>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-3 gap-4">
-            <StatCard icon={Target} label="AI Strategies" value={TESTING_STRATEGIES.items.length} color="text-teal-600" />
-            <StatCard icon={Workflow} label="AI Methodologies" value={TESTING_METHODOLOGIES.items.length} color="text-violet-600" />
-            <StatCard icon={Bot} label="AI Scenarios" value={AI_TEST_SCENARIOS.items.length} color="text-cyan-600" />
+            <StatCard icon={Boxes} label="Non-AI Strategies" value={NON_AI_TESTING_STRATEGIES.items.length} color="text-amber-600" />
+            <StatCard icon={Layers} label="Non-AI Methods" value={NON_AI_TESTING_METHODOLOGIES.items.length} color="text-rose-600" />
+            <StatCard icon={FileBarChart} label="QA Reports" value={QA_REPORTS_ARTIFACTS.items.length} color="text-emerald-600" />
           </div>
           <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
             <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
             <span>
-              <strong>{totalItems()}</strong> AI-focused tests across three pillars.
+              <strong>{totalItems()}</strong> non-AI tests across three pillars — the most
+              comprehensive non-AI QA playbook in Marqai.
             </span>
           </div>
         </CardContent>
@@ -116,7 +132,7 @@ export function AiTestingMethodologiesModule() {
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="Search AI tests, examples, or pass criteria…"
+          placeholder="Search non-AI tests, examples, or pass criteria…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           className="pl-10 h-11"
@@ -126,50 +142,71 @@ export function AiTestingMethodologiesModule() {
       {/* TABS */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-3 h-auto">
-          <TabsTrigger value="ai-strategies" className="gap-2 py-2">
-            <Target className="h-4 w-4" />
-            <span>AI Strategies</span>
+          <TabsTrigger value="non-ai-strategies" className="flex items-center gap-1.5 py-2 text-xs">
+            <Boxes className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Non-AI Strategies</span>
             <Badge variant="secondary" className="ml-1">{filteredStrategies.length}</Badge>
           </TabsTrigger>
-          <TabsTrigger value="ai-methodologies" className="gap-2 py-2">
-            <Workflow className="h-4 w-4" />
-            <span>AI Methodologies</span>
+          <TabsTrigger value="non-ai-methodologies" className="flex items-center gap-1.5 py-2 text-xs">
+            <Layers className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Non-AI Methods</span>
             <Badge variant="secondary" className="ml-1">{filteredMethodologies.length}</Badge>
           </TabsTrigger>
-          <TabsTrigger value="ai-scenarios" className="gap-2 py-2">
-            <Bot className="h-4 w-4" />
-            <span>AI Scenarios</span>
-            <Badge variant="secondary" className="ml-1">{filteredScenarios.length}</Badge>
+          <TabsTrigger value="qa-reports" className="flex items-center gap-1.5 py-2 text-xs">
+            <FileBarChart className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">QA Reports</span>
+            <Badge variant="secondary" className="ml-1">{filteredQaReports.length}</Badge>
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="ai-strategies" className="mt-4">
+        <TabsContent value="non-ai-strategies" className="mt-4">
           <CategoryBlock
-            category={TESTING_STRATEGIES}
+            category={NON_AI_TESTING_STRATEGIES}
             filteredItems={filteredStrategies}
-            icon={Target}
-            accent="teal"
+            icon={Boxes}
+            accent="amber"
           />
         </TabsContent>
 
-        <TabsContent value="ai-methodologies" className="mt-4">
+        <TabsContent value="non-ai-methodologies" className="mt-4">
           <CategoryBlock
-            category={TESTING_METHODOLOGIES}
+            category={NON_AI_TESTING_METHODOLOGIES}
             filteredItems={filteredMethodologies}
-            icon={Workflow}
-            accent="violet"
+            icon={Layers}
+            accent="rose"
           />
         </TabsContent>
 
-        <TabsContent value="ai-scenarios" className="mt-4">
+        <TabsContent value="qa-reports" className="mt-4">
           <CategoryBlock
-            category={AI_TEST_SCENARIOS}
-            filteredItems={filteredScenarios}
-            icon={Bot}
-            accent="cyan"
+            category={QA_REPORTS_ARTIFACTS}
+            filteredItems={filteredQaReports}
+            icon={FileBarChart}
+            accent="emerald"
           />
         </TabsContent>
       </Tabs>
+
+      {/* FOOTER CTA — log a bug */}
+      <Card className="border-dashed">
+        <CardContent className="p-6 flex flex-col md:flex-row items-start md:items-center gap-4 justify-between">
+          <div className="flex items-start gap-3">
+            <div className="h-10 w-10 rounded-lg bg-rose-100 dark:bg-rose-950/30 flex items-center justify-center shrink-0">
+              <Bug className="h-5 w-5 text-rose-600" />
+            </div>
+            <div>
+              <h4 className="font-semibold">Found a defect using one of these methodologies?</h4>
+              <p className="text-sm text-muted-foreground mt-1">
+                Log it in the Bug Tracker — every bug is linked back to the methodology that
+                surfaced it, so QA coverage reports stay accurate.
+              </p>
+            </div>
+          </div>
+          <Button onClick={() => setActiveModule("bug-tracker")}>
+            <Bug className="h-4 w-4 mr-1.5" /> Open Bug Tracker
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -207,12 +244,12 @@ function CategoryBlock({
   category: TestingCategory;
   filteredItems: TestingItem[];
   icon: React.ComponentType<{ className?: string }>;
-  accent: "teal" | "violet" | "cyan";
+  accent: "amber" | "rose" | "emerald";
 }) {
   const accentClasses = {
-    teal: "bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300",
-    violet: "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300",
-    cyan: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300",
+    amber: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
+    rose: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300",
+    emerald: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300",
   }[accent];
 
   return (
@@ -279,7 +316,7 @@ function CategoryBlock({
                   </h4>
                   <ul className="space-y-1.5">
                     {item.examples.map((ex, idx) => (
-                      <li key={idx} className="text-sm pl-4 border-l-2 border-teal-200 dark:border-teal-800 leading-relaxed">
+                      <li key={idx} className="text-sm pl-4 border-l-2 border-amber-200 dark:border-amber-800 leading-relaxed">
                         {ex}
                       </li>
                     ))}

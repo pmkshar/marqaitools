@@ -15,6 +15,8 @@ import { EmailModule } from "./modules/email-module";
 import { AnalyzerModule } from "./modules/analyzer-module";
 import { AiTestingModule } from "./modules/ai-testing-module";
 import { AiTestingMethodologiesModule } from "./modules/ai-testing-methodologies-module";
+import { NonAiTestingModule } from "./modules/non-ai-testing-module";
+import { BugTrackerModule } from "./modules/bug-tracker-module";
 import { LogoBuilderModule } from "./modules/logo-builder-module";
 import { WebsiteBuilderModule } from "./modules/website-builder-module";
 import { LeadsGeneratorModule } from "./modules/leads-generator-module";
@@ -141,6 +143,10 @@ function renderModule(m: ModuleId, principal: ReturnType<typeof useMarqai.getSta
       return <AiTestingModule />;
     case "ai-testing-methodologies":
       return <AiTestingMethodologiesModule />;
+    case "non-ai-testing":
+      return <NonAiTestingModule />;
+    case "bug-tracker":
+      return <BugTrackerModule />;
     case "logo-builder":
       return <LogoBuilderModule />;
     case "website-builder":
