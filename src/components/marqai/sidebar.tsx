@@ -24,6 +24,7 @@ import {
   ClipboardList,
   BarChart3,
   MessageCircle,
+  Bot,
 } from "lucide-react";
 import { useMarqai } from "@/lib/marqai/store";
 import { classNames } from "@/lib/marqai/utils";
@@ -49,6 +50,7 @@ const NAV: {
   { id: "website-builder",  label: "Website Builder",   icon: LayoutTemplate,  group: "Creative",       description: "AI landing pages" },
   { id: "email",            label: "Email Automation",  icon: Mail,            group: "Outreach",       description: "Campaigns & flows" },
   { id: "leads-generator",  label: "Leads Generator",   icon: Target,          group: "Outreach",       description: "AI prospect lists per product" },
+  { id: "sales-agents",    label: "AI Sales Agents",   icon: Bot,             group: "Outreach",       description: "Conversational sales suite (BANT/MEDDIC)" },
   { id: "whatsapp",         label: "WhatsApp Marketing", icon: MessageCircle,  group: "Outreach",       description: "Broadcasts, templates, contacts & API" },
   { id: "analyzer",         label: "Website Analyzer",  icon: Globe,           group: "Analysis",       description: "Deep portal analysis" },
   { id: "ai-testing",               label: "AI Tool Testing",          icon: FlaskConical,    group: "Analysis",       description: "Grade any AI tool" },

@@ -50,6 +50,7 @@ export const DEMO_ROLES: Role[] = [
       "logo-builder": "execute",
       "website-builder": "view",
       "leads-generator": "execute",
+      "sales-agents": "execute",
       "whatsapp": "manage",
       "ai-testing": "none",
       "ai-testing-methodologies": "view",

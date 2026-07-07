@@ -19,6 +19,7 @@ Marqai is a multi-tenant SaaS platform that bundles SEO analytics, multi-platfor
 | **Logo Builder**    | AI logos + instant SVG wordmark / monogram / emblem / abstract / gradient templates. Download as PNG or SVG. |
 | **Website Builder** | AI landing pages — hero, features, testimonial, pricing, FAQ, CTA. Live preview + export HTML.    |
 | **Leads Generator** | AI prospect lists per product/service — company, contact, fit-reason, 0-100 score. Export CSV.    |
+| **AI Sales Agents** | Multi-agent sales suite — conversational discovery, BANT/MEDDIC qualification, multi-channel outreach sequences, deal coaching with close-probability scoring, objection handler, SPIN discovery questions. 6 prebuilt agents (Qualifier, Outreach Composer, Deal Coach, Objection Handler, Discovery Architect, Full-Cycle AE). Pulls prospects from Leads Generator. |
 | **WhatsApp Marketing** | Broadcast marketing messages to thousands at once. Templates (Meta-approved), contacts (opt-in enforced), campaigns, scheduling, delivery/read/click analytics, REST API + webhook for external integrations. |
 | **Email Automation**| Campaigns + triggered automations. AI subject/body generation. Simulated send with metrics.        |
 | **Website Analyzer**| Deep portal analysis — tech stack, traffic, sources, keywords, competitors, missing features.      |
@@ -79,9 +80,9 @@ Every role is a collection of **module-level permissions**. Each permission can 
 2. **Marketing Manager** — all marketing modules `manage`, AI Testing `view`
 3. **SEO Specialist** — SEO + Analyzer `manage`, Dashboard `view`
 4. **Social Media Manager** — Social + Scheduler + Image + Video + Logo Builder `manage`
-5. **Email Marketer** — Email + Scheduler `manage`, Leads Generator `execute`
+5. **Email Marketer** — Email + Scheduler `manage`, Leads Generator + Sales Agents `execute`
 6. **AI QA Analyst** — AI Tool Testing `manage`, Dashboard + Analyzer `view`
-7. **Sales Development Rep** — Leads Generator `manage`, Email `execute`, Dashboard `view`
+7. **Sales Development Rep** — Leads Generator + Sales Agents `manage`, Email `execute`, Dashboard `view`
 8. **Viewer** — all modules `view` (read-only stakeholder)
 
 The Org Owner can clone, edit, or extend any of these — or build brand-new roles from scratch in the **Role Master** module.

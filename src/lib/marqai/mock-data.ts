@@ -9,6 +9,11 @@ import type {
   VideoProject,
   AiToolTestReport,
   Platform,
+  SalesAgent,
+  SalesConversation,
+  OutreachSequence,
+  DealCoachingSession,
+  ObjectionResponse,
 } from "./types";
 
 export const platformMeta: Record<
@@ -553,3 +558,356 @@ export const seedWhatsAppConnection: WhatsAppConnection = {
   connected: true,
   connectedAt: "2026-05-01T10:00:00.000Z",
 };
+
+// ============================================================
+// AI SALES AGENTS — seed data
+// ------------------------------------------------------------
+
+const DEFAULT_PRODUCT_CONTEXT =
+  "Marqai is an all-in-one AI marketing platform for B2B SaaS teams. It bundles SEO auditing, social scheduling, email automation, AI image/video creative, leads generation, and AI tool testing in a single subscription. Pricing starts at $49/mo (Starter) up to $399/mo (Scale), with custom Enterprise contracts.";
+
+export const seedSalesAgents: SalesAgent[] = [
+  {
+    id: "sa-qualifier-1",
+    name: "Alex — BANT Qualifier",
+    type: "qualifier",
+    methodology: "BANT",
+    description:
+      "Qualifies inbound and outbound leads using the BANT framework (Budget, Authority, Need, Timeline). Returns a 0-100 fit score and a one-paragraph qualification summary.",
+    systemPrompt:
+      "You are a senior sales development representative trained in BANT qualification. For each prospect conversation, surface budget signals, decision-making authority, the underlying business need, and the buying timeline. Never push the product before you have at least three of the four BANT pillars. Always summarize your qualification assessment at the end.",
+    productContext: DEFAULT_PRODUCT_CONTEXT,
+    tone: "Consultative, curious, concise. Never aggressive.",
+    active: true,
+    createdAt: "2026-06-01T09:00:00.000Z",
+  },
+  {
+    id: "sa-outreach-1",
+    name: "Maya — Outreach Composer",
+    type: "outreach",
+    methodology: "Consultative",
+    description:
+      "Builds 4-6 step multi-channel outreach sequences (email + LinkedIn + call) personalized to a buyer persona. Optimizes for reply rate, not just open rate.",
+    systemPrompt:
+      "You are a top-performing account executive who writes cold outreach that gets replies. Every sequence must (1) open with a specific, researched observation about the prospect, (2) tie that observation to a concrete business pain, (3) offer a soft CTA in the first two touches, (4) escalate CTAs in later touches, and (5) include a breakup email as the last step. Never use generic templates.",
+    productContext: DEFAULT_PRODUCT_CONTEXT,
+    tone: "Direct, specific, human. No buzzwords.",
+    active: true,
+    createdAt: "2026-06-03T14:30:00.000Z",
+  },
+  {
+    id: "sa-coach-1",
+    name: "Jordan — Deal Coach",
+    type: "deal-coach",
+    methodology: "MEDDIC",
+    description:
+      "Reviews active deals and produces a MEDDIC gap analysis, risk factors, prioritized recommendations, next steps, and a close probability score.",
+    systemPrompt:
+      "You are a sales manager coaching a rep on a live deal. Use the MEDDIC framework (Metrics, Economic Buyer, Decision Criteria, Decision Process, Identify Pain, Champion). For each missing or weak element, give one concrete action the rep can take this week. Always output a close probability between 0-100 with reasoning.",
+    productContext: DEFAULT_PRODUCT_CONTEXT,
+    tone: "Direct, constructive, evidence-based.",
+    active: true,
+    createdAt: "2026-06-05T11:15:00.000Z",
+  },
+  {
+    id: "sa-objection-1",
+    name: "Sam — Objection Handler",
+    type: "objection-handler",
+    methodology: "Consultative",
+    description:
+      "Generates 3 different response approaches to any sales objection (acknowledge-reframe, isolate-validate, evidence-pivot) with a verbatim rep script for each.",
+    systemPrompt:
+      "You are a sales enablement coach. For every objection, produce three distinct response strategies. Each strategy must (1) name the approach, (2) give a 2-3 sentence verbatim script the rep can say, and (3) explain why it works. Never be defensive or dismissive of the prospect's concern.",
+    productContext: DEFAULT_PRODUCT_CONTEXT,
+    tone: "Empathetic, confident, never dismissive.",
+    active: true,
+    createdAt: "2026-06-07T16:45:00.000Z",
+  },
+  {
+    id: "sa-discovery-1",
+    name: "Riley — Discovery Architect",
+    type: "discovery",
+    methodology: "SPIN",
+    description:
+      "Generates a set of SPIN discovery questions (Situation, Problem, Implication, Need-payoff) tailored to a prospect's persona and the product being sold.",
+    systemPrompt:
+      "You are a master of consultative discovery. Use the SPIN framework. Start broad with Situation questions, narrow to Problem questions, escalate to Implication questions to build urgency, and close with Need-payoff questions so the prospect articulates the value of solving the problem themselves. Always explain the goal of each question.",
+    productContext: DEFAULT_PRODUCT_CONTEXT,
+    tone: "Curious, patient, never leading.",
+    active: true,
+    createdAt: "2026-06-09T10:20:00.000Z",
+  },
+  {
+    id: "sa-conversation-1",
+    name: "Casey — Full-Cycle AE",
+    type: "conversation",
+    methodology: "MEDDIC",
+    description:
+      "Full-cycle account executive agent. Runs discovery → qualification → demo → proposal → negotiation. Tracks conversation stage and updates qualification as the deal progresses.",
+    systemPrompt:
+      "You are a senior account executive running a full sales cycle. Move deliberately through discovery, qualification, demo, proposal, and negotiation stages. Always confirm the prospect's stage before advancing. Use MEDDIC as your internal compass but never expose the framework to the prospect. Close for next steps on every message — never leave a turn without a clear CTA.",
+    productContext: DEFAULT_PRODUCT_CONTEXT,
+    tone: "Confident, consultative, outcome-oriented.",
+    active: true,
+    createdAt: "2026-06-11T13:00:00.000Z",
+  },
+];
+
+export const seedSalesConversations: SalesConversation[] = [
+  {
+    id: "sc-1",
+    agentId: "sa-conversation-1",
+    agentName: "Casey — Full-Cycle AE",
+    prospectCompany: "BrightWave Labs",
+    prospectContact: "Marcus Weber",
+    prospectTitle: "VP Marketing",
+    productContext: DEFAULT_PRODUCT_CONTEXT,
+    methodology: "MEDDIC",
+    stage: "discovery",
+    messages: [
+      {
+        id: "sm-1",
+        role: "agent",
+        content:
+          "Hi Marcus — thanks for making time. Before I show you anything, I'd love to understand what's pushing you to look at marketing platforms right now. What's the situation at BrightWave that's making this a priority?",
+        timestamp: "2026-07-01T10:00:00.000Z",
+        metadata: { stage: "discovery", intent: "open-discovery", sentiment: "neutral" },
+      },
+      {
+        id: "sm-2",
+        role: "prospect",
+        content:
+          "We've outgrown our current stack — HubSpot for email, Buffer for social, and a bunch of manual SEO work. Three tools, three logins, three bills. Team is spending more time switching contexts than actually marketing.",
+        timestamp: "2026-07-01T10:01:30.000Z",
+        metadata: { stage: "discovery", intent: "pain-sharing", sentiment: "negative" },
+      },
+      {
+        id: "sm-3",
+        role: "agent",
+        content:
+          "That context-switching cost is real — we see it with most teams above 5 marketers. Quick follow-up: when you say 'outgrown', is that mostly about volume (more campaigns per month) or about complexity (more channels, more personas)?",
+        timestamp: "2026-07-01T10:02:45.000Z",
+        metadata: {
+          stage: "discovery",
+          intent: "deepen-pain",
+          sentiment: "neutral",
+          methodologyNote: "Identify Pain — narrow the problem",
+        },
+      },
+    ],
+    qualification: {
+      need: "Tool consolidation — replace HubSpot + Buffer + manual SEO with one platform",
+      score: 55,
+      notes: "Strong pain signal. Budget, authority, and timeline still unconfirmed.",
+    },
+    createdAt: "2026-07-01T09:55:00.000Z",
+    updatedAt: "2026-07-01T10:02:45.000Z",
+  },
+  {
+    id: "sc-2",
+    agentId: "sa-qualifier-1",
+    agentName: "Alex — BANT Qualifier",
+    prospectCompany: "Vertex Cloud Systems",
+    prospectContact: "Priya Patel",
+    prospectTitle: "Head of Growth",
+    productContext: DEFAULT_PRODUCT_CONTEXT,
+    methodology: "BANT",
+    stage: "qualification",
+    messages: [
+      {
+        id: "sm-4",
+        role: "agent",
+        content:
+          "Priya — quick discovery call. What's prompting Vertex to evaluate marketing platforms now versus last quarter?",
+        timestamp: "2026-07-03T14:00:00.000Z",
+        metadata: { stage: "qualification", intent: "need-probe", sentiment: "neutral" },
+      },
+      {
+        id: "sm-5",
+        role: "prospect",
+        content:
+          "We just closed a Series B and are scaling the GTM team from 4 to 12. Need to onboard new marketers fast without each one becoming a tools expert.",
+        timestamp: "2026-07-03T14:01:00.000Z",
+        metadata: { stage: "qualification", intent: "timeline-signal", sentiment: "positive" },
+      },
+    ],
+    qualification: {
+      need: "Onboard new GTM hires onto a single marketing stack",
+      authority: "Head of Growth — likely recommender, may need CFO sign-off",
+      timeline: "Series B closed ~2 weeks ago; scaling now",
+      score: 72,
+      notes: "Strong timeline + need. Budget source unclear (Series B funds?).",
+    },
+    createdAt: "2026-07-03T13:55:00.000Z",
+    updatedAt: "2026-07-03T14:01:00.000Z",
+  },
+];
+
+export const seedOutreachSequences: OutreachSequence[] = [
+  {
+    id: "os-1",
+    name: "VP Marketing — SaaS consolidation",
+    productName: "Marqai Marketing Suite",
+    targetPersona: "VP Marketing at 50-200 person B2B SaaS companies running 3+ marketing tools",
+    tone: "Direct, specific, no fluff",
+    cadence: "Day 1, Day 4, Day 9, Day 16, Day 24",
+    steps: [
+      {
+        index: 1,
+        channel: "email",
+        delayDays: 0,
+        subject: "BrightWave → 3 tools → 1?",
+        body:
+          "Hi {{first_name}} — I noticed BrightWave is hiring a 4th marketer. Most teams your size spend 8+ hrs/week just switching between HubSpot, Buffer, and an SEO tool. Worth a 15-min call to see if consolidating makes sense? — Maya",
+        goal: "Trigger curiosity with a specific observation. Soft CTA.",
+      },
+      {
+        index: 2,
+        channel: "linkedin",
+        delayDays: 3,
+        body:
+          "Saw your post on the BrightWave hiring sprint — congrats. Quick question: are you planning to consolidate the marketing stack as part of the scale-up, or keep best-of-breed? Curious because we just helped two Series B SaaS teams merge 4 tools into 1.",
+        goal: "Warm the channel. Trigger reply via a real question.",
+      },
+      {
+        index: 3,
+        channel: "email",
+        delayDays: 5,
+        subject: "Re: BrightWave → 3 tools → 1?",
+        body:
+          "Following up — happy to share a side-by-side of what Vertex Cloud and Lumen Forge saw when they consolidated. Short version: 32% lower tool spend, 2x faster onboarding for new marketers. Worth 15 min this week? — Maya",
+        goal: "Add social proof + quantify value. Sharpen CTA.",
+      },
+      {
+        index: 4,
+        channel: "call",
+        delayDays: 7,
+        body:
+          "Cold call script: 'Hi {{first_name}}, it's Maya from Marqai. I sent you a note about consolidating your marketing stack — is now an OK time for a 2-minute pitch, or should I call back?' If yes: 'Most VP Marketing at Series B SaaS tell me they're drowning in 3-4 tool subscriptions. We replace them with one. Worth a real conversation?'",
+        goal: "Live conversation. If no pickup, leave a 10-second voicemail referencing the emails.",
+      },
+      {
+        index: 5,
+        channel: "email",
+        delayDays: 8,
+        subject: "Closing the loop",
+        body:
+          "Last note from me, {{first_name}}. If consolidating your marketing stack isn't a priority this quarter, no worries — I'll stop reaching out. If it is, just reply 'yes' and I'll send a calendar link. Either way, good luck with the hiring sprint. — Maya",
+        goal: "Breakup email. Trigger replies from prospects who were procrastinating.",
+      },
+    ],
+    createdAt: "2026-06-20T11:00:00.000Z",
+  },
+];
+
+export const seedDealCoachingSessions: DealCoachingSession[] = [
+  {
+    id: "dc-1",
+    agentId: "sa-coach-1",
+    dealName: "Vertex Cloud — Scale plan, 8 seats",
+    prospectCompany: "Vertex Cloud Systems",
+    contactName: "Priya Patel",
+    dealValue: 38400,
+    currency: "USD",
+    stage: "Proposal",
+    closeDate: "2026-07-31",
+    context:
+      "Priya is the Head of Growth and has verbal agreement from the CMO. CFO has not seen pricing yet. Procurement requires a 2-week security review. Competitor (HubSpot) is the incumbent — Priya's team is already trained on it.",
+    methodology: "MEDDIC",
+    recommendations: [
+      {
+        category: "strategy",
+        priority: "high",
+        title: "Build a CFO-ready ROI one-pager before sending pricing",
+        description:
+          "CFO hasn't seen pricing and Priya is the recommender, not the economic buyer. Pre-empt the CFO objection by sending Priya a 1-page ROI calculator (annual savings from tool consolidation + onboarding time saved) she can forward internally.",
+      },
+      {
+        category: "process",
+        priority: "high",
+        title: "Kick off security review THIS week",
+        description:
+          "Procurement's 2-week security review is on the critical path to a 7/31 close. If we don't start the review by 7/17, we slip into August. Send the security questionnaire packet today and offer a call with our CISO.",
+      },
+      {
+        category: "messaging",
+        priority: "medium",
+        title: "Reframe the HubSpot switching cost",
+        description:
+          "Team is trained on HubSpot — that's the incumbent advantage. Counter with onboarding data: 'Marqai onboards a new marketer in 2 hours vs 2 days on HubSpot.' Make switching feel cheap, not risky.",
+      },
+      {
+        category: "risk",
+        priority: "medium",
+        title: "Identify a champion below Priya",
+        description:
+          "If Priya leaves or loses influence, the deal dies. Ask Priya to introduce you to one of the new GTM hires — they'll be the daily user and can become your internal champion.",
+      },
+    ],
+    riskFactors: [
+      "Economic buyer (CFO) not yet engaged",
+      "Procurement timeline is tight — slippage of 3+ days likely pushes close to August",
+      "No champion below Priya — single point of failure",
+      "Incumbent (HubSpot) switching cost not yet countered",
+    ],
+    nextSteps: [
+      "Send Priya the ROI one-pager (today)",
+      "Send the security questionnaire packet (today)",
+      "Ask Priya for an intro to a new GTM hire (this week)",
+      "Schedule a joint call with Priya + CFO for next week",
+    ],
+    closeProbability: 55,
+    createdAt: "2026-07-04T09:30:00.000Z",
+  },
+];
+
+export const seedObjectionResponses: ObjectionResponse[] = [
+  {
+    id: "ob-1",
+    objection: "It's too expensive — we can't afford that right now.",
+    category: "price",
+    productName: "Marqai Marketing Suite",
+    responses: [
+      {
+        approach: "Acknowledge + reframe to total cost of ownership",
+        script:
+          "Totally fair to flag the price — let me make sure we're comparing apples to apples. Most teams your size are paying for HubSpot + Buffer + an SEO tool + a freelancer for creative. When we add that up, Marqai usually comes in 30-40% lower. Mind if I show you the math for your stack?",
+      },
+      {
+        approach: "Isolate — is price the only blocker?",
+        script:
+          "Got it. Quick check — if price weren't a concern, is there anything else that would stop you from moving forward? I want to make sure I'm solving the right problem for you.",
+      },
+      {
+        approach: "Evidence pivot — anchor to a similar customer's outcome",
+        script:
+          "That's a common reaction. Vertex Cloud said the same thing in week one — by month three they'd cut their tool spend by 32% and onboarded two new marketers in a single afternoon. Worth a 14-day trial to see if the math holds for you?",
+      },
+    ],
+    createdAt: "2026-06-25T15:00:00.000Z",
+  },
+  {
+    id: "ob-2",
+    objection: "We're already using HubSpot and the team is trained on it.",
+    category: "competitor",
+    productName: "Marqai Marketing Suite",
+    responses: [
+      {
+        approach: "Acknowledge the switching cost + quantify the staying cost",
+        script:
+          "Totally understand — HubSpot is a great platform and the team being trained is real value. The question I'd ask: what's the cost of staying? We typically see teams of your size spend 8+ hours a week just context-switching between HubSpot and the other tools it doesn't replace. That's a full headcount in lost productivity.",
+      },
+      {
+        approach: "Pilot, not rip-and-replace",
+        script:
+          "What if we didn't ask you to rip out HubSpot? Most teams start with Marqai for SEO + creative + social, keep HubSpot for email for 60 days, and then move email over once the team's comfortable. Lower risk, same destination.",
+      },
+      {
+        approach: "Onboarding time as the counter-argument",
+        script:
+          "The training argument cuts both ways — HubSpot takes 2 days to onboard a new marketer. Marqai takes 2 hours. For a team that's hiring 8 new GTM reps this year, that's a full week of saved onboarding per hire.",
+      },
+    ],
+    createdAt: "2026-06-26T11:30:00.000Z",
+  },
+];

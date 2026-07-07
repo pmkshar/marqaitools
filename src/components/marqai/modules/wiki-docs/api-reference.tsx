@@ -108,6 +108,48 @@ email=user@example.com&password=...&csrfToken=...`}</code></pre>
 }`}</code></pre>
           </div>
 
+          <div className="rounded-md border p-3 bg-primary/5">
+            <div className="font-mono text-xs text-emerald-700">POST /api/marqai/sales/chat</div>
+            <div className="text-xs text-muted-foreground mt-1">
+              Run one conversational turn with an AI sales agent. Returns the agent's reply, updated stage, and BANT/MEDDIC qualification deltas. Permission: sales-agents:execute+.
+            </div>
+          </div>
+
+          <div className="rounded-md border p-3 bg-primary/5">
+            <div className="font-mono text-xs text-emerald-700">POST /api/marqai/sales/qualify</div>
+            <div className="text-xs text-muted-foreground mt-1">
+              One-shot BANT/MEDDIC/SPIN qualification for a lead. Returns a 0-100 fit score, summary, recommended next step, and 3-5 discovery questions. Permission: sales-agents:execute+.
+            </div>
+          </div>
+
+          <div className="rounded-md border p-3 bg-primary/5">
+            <div className="font-mono text-xs text-emerald-700">POST /api/marqai/sales/outreach</div>
+            <div className="text-xs text-muted-foreground mt-1">
+              Generate a 4-6 step multi-channel outreach sequence (email + LinkedIn + call) personalized to a buyer persona. Permission: sales-agents:execute+.
+            </div>
+          </div>
+
+          <div className="rounded-md border p-3 bg-primary/5">
+            <div className="font-mono text-xs text-emerald-700">POST /api/marqai/sales/coach</div>
+            <div className="text-xs text-muted-foreground mt-1">
+              Coach an active deal using MEDDIC. Returns prioritized recommendations, risk factors, next steps, and a 0-100 close probability. Permission: sales-agents:execute+.
+            </div>
+          </div>
+
+          <div className="rounded-md border p-3 bg-primary/5">
+            <div className="font-mono text-xs text-emerald-700">POST /api/marqai/sales/objection</div>
+            <div className="text-xs text-muted-foreground mt-1">
+              Generate three distinct response strategies for any sales objection. Auto-classifies the objection category (price, timing, competitor, etc.). Permission: sales-agents:execute+.
+            </div>
+          </div>
+
+          <div className="rounded-md border p-3 bg-primary/5">
+            <div className="font-mono text-xs text-emerald-700">POST /api/marqai/sales/discovery</div>
+            <div className="text-xs text-muted-foreground mt-1">
+              Generate a tailored set of SPIN/BANT/MEDDIC discovery questions for a prospect. Each question comes with a "goal" explaining what the rep is trying to learn. Permission: sales-agents:execute+.
+            </div>
+          </div>
+
           <div className="rounded-md border p-3">
             <div className="font-mono text-xs text-emerald-700">POST /api/marqai/test-ai-tool</div>
             <div className="text-xs text-muted-foreground mt-1">

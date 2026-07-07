@@ -18,6 +18,7 @@ export type ModuleId =
   | "logo-builder"
   | "website-builder"
   | "leads-generator"
+  | "sales-agents"
   | "whatsapp"
   | "reports"
   | "roles"
@@ -619,4 +620,184 @@ export interface WhatsAppWebhookEvent {
   payload: Record<string, unknown>;
   /** Parsed summary for display. */
   summary: string;
+}
+
+// ============================================================
+// AI SALES AGENTS
+// ------------------------------------------------------------
+// A multi-agent sales suite inspired by conversational sales
+// methodology frameworks (BANT, MEDDIC, SPIN, Challenger,
+// Consultative). Each agent is specialized for one stage of
+// the revenue pipeline: qualifying prospects, drafting
+// outreach sequences, coaching active deals, handling
+// objections, generating discovery questions, or running a
+// full discovery-to-close conversation.
+// ============================================================
+
+export type SalesMethodology =
+  | "BANT"
+  | "MEDDIC"
+  | "SPIN"
+  | "Challenger"
+  | "Consultative";
+
+export type SalesAgentType =
+  | "qualifier" // qualifies leads using a methodology
+  | "outreach" // generates personalized multi-step outreach sequences
+  | "deal-coach" // coaches reps on active deals
+  | "objection-handler" // scripts responses to common objections
+  | "discovery" // generates discovery questions per prospect
+  | "conversation"; // full conversational sales agent (discovery → close)
+
+export interface SalesAgent {
+  id: string;
+  name: string;
+  type: SalesAgentType;
+  methodology: SalesMethodology;
+  description: string;
+  /** System prompt that defines the agent's behavior. */
+  systemPrompt: string;
+  /** Product / service context the agent sells. */
+  productContext: string;
+  /** Default tone for outreach and conversations. */
+  tone: string;
+  active: boolean;
+  createdAt: string;
+}
+
+export type SalesConversationStage =
+  | "discovery"
+  | "qualification"
+  | "demo"
+  | "proposal"
+  | "negotiation"
+  | "closed-won"
+  | "closed-lost";
+
+export type SalesMessageRole = "agent" | "prospect" | "user";
+
+export interface SalesMessage {
+  id: string;
+  role: SalesMessageRole;
+  content: string;
+  timestamp: string;
+  metadata?: {
+    stage?: SalesConversationStage;
+    intent?: string;
+    sentiment?: "positive" | "neutral" | "negative";
+    methodologyNote?: string;
+  };
+}
+
+export interface BANTQualification {
+  budget?: string;
+  authority?: string;
+  need?: string;
+  timeline?: string;
+  /** Overall fit score 0-100 derived from the four pillars. */
+  score: number;
+  notes?: string;
+}
+
+export interface SalesConversation {
+  id: string;
+  agentId: string;
+  agentName: string;
+  prospectCompany: string;
+  prospectContact: string;
+  prospectTitle?: string;
+  productContext: string;
+  methodology: SalesMethodology;
+  stage: SalesConversationStage;
+  messages: SalesMessage[];
+  qualification: BANTQualification;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type OutreachChannel = "email" | "linkedin" | "call" | "task";
+
+export interface OutreachStep {
+  index: number;
+  channel: OutreachChannel;
+  delayDays: number;
+  subject?: string;
+  body: string;
+  goal: string;
+}
+
+export interface OutreachSequence {
+  id: string;
+  name: string;
+  productName: string;
+  targetPersona: string;
+  tone: string;
+  cadence: string;
+  steps: OutreachStep[];
+  /** Optional link to a leads list for batch outreach. */
+  leadListId?: string;
+  createdAt: string;
+}
+
+export type DealRecommendationCategory =
+  | "strategy"
+  | "messaging"
+  | "process"
+  | "risk";
+
+export type DealRecommendationPriority = "high" | "medium" | "low";
+
+export interface DealRecommendation {
+  category: DealRecommendationCategory;
+  priority: DealRecommendationPriority;
+  title: string;
+  description: string;
+}
+
+export interface DealCoachingSession {
+  id: string;
+  agentId: string;
+  dealName: string;
+  prospectCompany: string;
+  contactName?: string;
+  dealValue?: number;
+  currency?: string;
+  stage: string;
+  closeDate?: string;
+  context: string;
+  methodology: SalesMethodology;
+  recommendations: DealRecommendation[];
+  riskFactors: string[];
+  nextSteps: string[];
+  closeProbability: number; // 0-100
+  createdAt: string;
+}
+
+export type ObjectionCategory =
+  | "price"
+  | "timing"
+  | "competitor"
+  | "authority"
+  | "need"
+  | "trust"
+  | "complexity"
+  | "other";
+
+export interface ObjectionResponse {
+  id: string;
+  objection: string;
+  category: ObjectionCategory;
+  productName?: string;
+  responses: { approach: string; script: string }[];
+  createdAt: string;
+}
+
+export interface DiscoveryQuestionSet {
+  id: string;
+  prospectCompany: string;
+  prospectPersona: string;
+  productContext: string;
+  methodology: SalesMethodology;
+  questions: { category: string; question: string; goal: string }[];
+  createdAt: string;
 }

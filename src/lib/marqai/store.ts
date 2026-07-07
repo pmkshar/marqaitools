@@ -33,6 +33,15 @@ import type {
   WhatsAppCampaign,
   WhatsAppMessageLog,
   WhatsAppConnection,
+  SalesAgent,
+  SalesConversation,
+  SalesMessage,
+  SalesConversationStage,
+  BANTQualification,
+  OutreachSequence,
+  DealCoachingSession,
+  ObjectionResponse,
+  DiscoveryQuestionSet,
 } from "./types";
 import {
   seedAccounts,
@@ -48,6 +57,11 @@ import {
   seedWhatsAppCampaigns,
   seedWhatsAppMessageLogs,
   seedWhatsAppConnection,
+  seedSalesAgents,
+  seedSalesConversations,
+  seedOutreachSequences,
+  seedDealCoachingSessions,
+  seedObjectionResponses,
 } from "./mock-data";
 import {
   DEMO_ORG,
@@ -181,6 +195,45 @@ interface MarqaiState {
   addWhatsAppMessageLogs: (logs: WhatsAppMessageLog[]) => void;
   whatsappConnection: WhatsAppConnection;
   updateWhatsAppConnection: (patch: Partial<WhatsAppConnection>) => void;
+
+  // ---------- AI SALES AGENTS ----------
+  salesAgents: SalesAgent[];
+  addSalesAgent: (a: SalesAgent) => void;
+  updateSalesAgent: (id: string, patch: Partial<SalesAgent>) => void;
+  deleteSalesAgent: (id: string) => void;
+
+  salesConversations: SalesConversation[];
+  addSalesConversation: (c: SalesConversation) => void;
+  updateSalesConversation: (id: string, patch: Partial<SalesConversation>) => void;
+  deleteSalesConversation: (id: string) => void;
+  appendSalesMessage: (
+    conversationId: string,
+    message: SalesMessage,
+  ) => void;
+  setConversationStage: (
+    conversationId: string,
+    stage: SalesConversationStage,
+  ) => void;
+  setConversationQualification: (
+    conversationId: string,
+    qualification: BANTQualification,
+  ) => void;
+
+  outreachSequences: OutreachSequence[];
+  addOutreachSequence: (s: OutreachSequence) => void;
+  deleteOutreachSequence: (id: string) => void;
+
+  dealCoachingSessions: DealCoachingSession[];
+  addDealCoachingSession: (s: DealCoachingSession) => void;
+  deleteDealCoachingSession: (id: string) => void;
+
+  objectionResponses: ObjectionResponse[];
+  addObjectionResponse: (o: ObjectionResponse) => void;
+  deleteObjectionResponse: (id: string) => void;
+
+  discoveryQuestionSets: DiscoveryQuestionSet[];
+  addDiscoveryQuestionSet: (d: DiscoveryQuestionSet) => void;
+  deleteDiscoveryQuestionSet: (id: string) => void;
 }
 
 export const useMarqai = create<MarqaiState>()(
@@ -514,6 +567,94 @@ export const useMarqai = create<MarqaiState>()(
       whatsappConnection: seedWhatsAppConnection,
       updateWhatsAppConnection: (patch) =>
         set((s) => ({ whatsappConnection: { ...s.whatsappConnection, ...patch } })),
+
+      // ---------- AI SALES AGENTS ----------
+      salesAgents: seedSalesAgents,
+      addSalesAgent: (a) => set((s) => ({ salesAgents: [a, ...s.salesAgents] })),
+      updateSalesAgent: (id, patch) =>
+        set((s) => ({
+          salesAgents: s.salesAgents.map((a) =>
+            a.id === id ? { ...a, ...patch } : a,
+          ),
+        })),
+      deleteSalesAgent: (id) =>
+        set((s) => ({ salesAgents: s.salesAgents.filter((a) => a.id !== id) })),
+
+      salesConversations: seedSalesConversations,
+      addSalesConversation: (c) =>
+        set((s) => ({ salesConversations: [c, ...s.salesConversations] })),
+      updateSalesConversation: (id, patch) =>
+        set((s) => ({
+          salesConversations: s.salesConversations.map((c) =>
+            c.id === id ? { ...c, ...patch, updatedAt: new Date().toISOString() } : c,
+          ),
+        })),
+      deleteSalesConversation: (id) =>
+        set((s) => ({
+          salesConversations: s.salesConversations.filter((c) => c.id !== id),
+        })),
+      appendSalesMessage: (conversationId, message) =>
+        set((s) => ({
+          salesConversations: s.salesConversations.map((c) =>
+            c.id === conversationId
+              ? {
+                  ...c,
+                  messages: [...c.messages, message],
+                  updatedAt: new Date().toISOString(),
+                }
+              : c,
+          ),
+        })),
+      setConversationStage: (conversationId, stage) =>
+        set((s) => ({
+          salesConversations: s.salesConversations.map((c) =>
+            c.id === conversationId
+              ? { ...c, stage, updatedAt: new Date().toISOString() }
+              : c,
+          ),
+        })),
+      setConversationQualification: (conversationId, qualification) =>
+        set((s) => ({
+          salesConversations: s.salesConversations.map((c) =>
+            c.id === conversationId
+              ? { ...c, qualification, updatedAt: new Date().toISOString() }
+              : c,
+          ),
+        })),
+
+      outreachSequences: seedOutreachSequences,
+      addOutreachSequence: (seq) =>
+        set((s) => ({ outreachSequences: [seq, ...s.outreachSequences] })),
+      deleteOutreachSequence: (id) =>
+        set((s) => ({
+          outreachSequences: s.outreachSequences.filter((x) => x.id !== id),
+        })),
+
+      dealCoachingSessions: seedDealCoachingSessions,
+      addDealCoachingSession: (sess) =>
+        set((s) => ({
+          dealCoachingSessions: [sess, ...s.dealCoachingSessions],
+        })),
+      deleteDealCoachingSession: (id) =>
+        set((s) => ({
+          dealCoachingSessions: s.dealCoachingSessions.filter((x) => x.id !== id),
+        })),
+
+      objectionResponses: seedObjectionResponses,
+      addObjectionResponse: (o) =>
+        set((s) => ({ objectionResponses: [o, ...s.objectionResponses] })),
+      deleteObjectionResponse: (id) =>
+        set((s) => ({
+          objectionResponses: s.objectionResponses.filter((x) => x.id !== id),
+        })),
+
+      discoveryQuestionSets: [],
+      addDiscoveryQuestionSet: (d) =>
+        set((s) => ({ discoveryQuestionSets: [d, ...s.discoveryQuestionSets] })),
+      deleteDiscoveryQuestionSet: (id) =>
+        set((s) => ({
+          discoveryQuestionSets: s.discoveryQuestionSets.filter((x) => x.id !== id),
+        })),
     }),
     {
       name: "marqai-session-v2",
@@ -527,6 +668,12 @@ export const useMarqai = create<MarqaiState>()(
         logos: s.logos,
         websites: s.websites,
         leadLists: s.leadLists,
+        salesAgents: s.salesAgents,
+        salesConversations: s.salesConversations,
+        outreachSequences: s.outreachSequences,
+        dealCoachingSessions: s.dealCoachingSessions,
+        objectionResponses: s.objectionResponses,
+        discoveryQuestionSets: s.discoveryQuestionSets,
         whatsappTemplates: s.whatsappTemplates,
         whatsappContacts: s.whatsappContacts,
         whatsappContactLists: s.whatsappContactLists,
