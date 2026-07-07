@@ -56,10 +56,10 @@ export async function POST(req: NextRequest) {
 
         if (base64) {
           const dataUrl = `data:image/png;base64,${base64}`;
-          return NextResponse.json({ ok: true, url: dataUrl, base64, format: "png", prompt, model });
+          return NextResponse.json({ ok: true, url: dataUrl, base64, format: "png", prompt, model, source: "zai" });
         }
         if (url) {
-          return NextResponse.json({ ok: true, url, prompt, model });
+          return NextResponse.json({ ok: true, url, prompt, model, source: "zai" });
         }
         lastError = `Model ${model}: no image data in response`;
       } catch (e) {
@@ -68,14 +68,39 @@ export async function POST(req: NextRequest) {
           lastError = `Model ${model}: ${msg}`;
           continue;
         }
-        return NextResponse.json({ error: msg, model }, { status: 500 });
+        lastError = `Model ${model}: ${msg}`;
+        break;
       }
     }
 
+    // FALLBACK: Pollinations.ai — free, no API key required. Used when Z.AI
+    // image generation is unavailable on the user's plan.
+    try {
+      const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(
+        prompt.slice(0, 500),
+      )}?width=1024&height=1024&nologo=true&model=flux`;
+      const imgRes = await fetch(pollinationsUrl, { signal: AbortSignal.timeout(45000) });
+      if (imgRes.ok) {
+        const buf = await imgRes.arrayBuffer();
+        const base64 = Buffer.from(buf).toString("base64");
+        const dataUrl = `data:image/png;base64,${base64}`;
+        return NextResponse.json({
+          ok: true,
+          url: dataUrl,
+          base64,
+          format: "png",
+          prompt,
+          source: "pollinations",
+          warning: `Z.AI image generation unavailable on your plan (${lastError}). Used Pollinations.ai free fallback instead.`,
+        });
+      }
+      lastError += ` | Pollinations fallback failed: HTTP ${imgRes.status}`;
+    } catch (e) {
+      lastError += ` | Pollinations fallback error: ${e instanceof Error ? e.message : String(e)}`;
+    }
+
     return NextResponse.json(
-      {
-        error: `No image model worked on your Z.AI plan. Tried: ${modelsToTry.join(", ")}. Last error: ${lastError}.`,
-      },
+      { error: `Logo AI generation failed. ${lastError}.` },
       { status: 502 },
     );
   } catch (e) {

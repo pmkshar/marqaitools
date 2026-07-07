@@ -62,10 +62,11 @@ export async function POST(req: NextRequest) {
             base64,
             format: "png",
             model,
+            source: "zai",
           });
         }
         if (url) {
-          return NextResponse.json({ ok: true, url, model });
+          return NextResponse.json({ ok: true, url, model, source: "zai" });
         }
         // No image data — try the next model
         lastError = `Model ${model}: no image data in response`;
@@ -76,14 +77,45 @@ export async function POST(req: NextRequest) {
           lastError = `Model ${model}: ${msg}`;
           continue;
         }
-        // Any other error (auth, rate limit, network) — fail fast
-        return NextResponse.json({ error: msg, model }, { status: 500 });
+        // Any other error (auth, rate limit, network) — break to fallback
+        lastError = `Model ${model}: ${msg}`;
+        break;
       }
+    }
+
+    // FALLBACK: Pollinations.ai — free, no API key required, works on any
+    // deployment. Used when Z.AI image generation is unavailable (e.g. the
+    // user's Z.AI plan doesn't include any cogview models, which is the
+    // case on the free Z.AI international tier that only includes chat).
+    // Returns a real PNG image fetched and converted to base64 data URL
+    // so it works identically to the Z.AI path on the client side.
+    try {
+      const [w, h] = size.split("x").map((n) => parseInt(n, 10) || 1024);
+      const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(
+        prompt.slice(0, 500),
+      )}?width=${w}&height=${h}&nologo=true&model=flux`;
+      const imgRes = await fetch(pollinationsUrl, { signal: AbortSignal.timeout(45000) });
+      if (imgRes.ok) {
+        const buf = await imgRes.arrayBuffer();
+        const base64 = Buffer.from(buf).toString("base64");
+        const dataUrl = `data:image/png;base64,${base64}`;
+        return NextResponse.json({
+          ok: true,
+          url: dataUrl,
+          base64,
+          format: "png",
+          source: "pollinations",
+          warning: `Z.AI image generation unavailable on your plan (${lastError}). Used Pollinations.ai free fallback instead. Upgrade your Z.AI plan or set ZAI_IMAGE_MODEL to enable Z.AI cogview generation.`,
+        });
+      }
+      lastError += ` | Pollinations fallback also failed: HTTP ${imgRes.status}`;
+    } catch (e) {
+      lastError += ` | Pollinations fallback error: ${e instanceof Error ? e.message : String(e)}`;
     }
 
     return NextResponse.json(
       {
-        error: `No image model worked on your Z.AI plan. Tried: ${modelsToTry.join(", ")}. Last error: ${lastError}. Set ZAI_IMAGE_MODEL env var to a model name your plan supports (e.g. cogview-4, cogview-3-plus).`,
+        error: `Image generation failed. Z.AI: ${lastError}. Set ZAI_IMAGE_MODEL env var to a model name your Z.AI plan supports (e.g. cogview-4, cogview-3-plus).`,
       },
       { status: 502 },
     );
