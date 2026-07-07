@@ -56,7 +56,11 @@ Return strict JSON.`;
         { role: "user", content: user },
       ],
       temperature: 0.7,
-      max_tokens: 4096,
+      // 6 sections of inline-styled HTML can easily exceed 4k tokens,
+      // which would cause the JSON to be truncated mid-object and the
+      // parser to silently return null. Bump to 8k to give the model
+      // room to finish the closing brace.
+      max_tokens: 8192,
     });
 
     const raw = completion.choices?.[0]?.message?.content ?? "";

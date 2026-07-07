@@ -252,6 +252,7 @@ export interface VideoProject {
   aspectRatio: "16:9" | "9:16" | "1:1" | "4:5";
   status: "queued" | "rendering" | "done" | "failed";
   thumbnailUrl?: string;
+  videoUrl?: string;
   scenes: { index: number; text: string; visual: string }[];
   createdAt: string;
 }

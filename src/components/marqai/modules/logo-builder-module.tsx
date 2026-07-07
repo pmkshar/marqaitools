@@ -8,9 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import {
-  PenTool, Loader2, Download, Trash2, Sparkles, Palette, Wand2,
+  PenTool, Loader2, Download, Trash2, Sparkles, Palette, Wand2, Eye, Copy, Maximize2,
 } from "lucide-react";
 import type { LogoAsset, LogoStyle } from "@/lib/marqai/types";
 import { uid, formatDateTime } from "@/lib/marqai/utils";
@@ -46,6 +47,7 @@ export function LogoBuilderModule() {
   const [palette, setPalette] = useState<string[]>(PALETTES[0].colors);
   const [mode, setMode] = useState<"template" | "ai">("template");
   const [generating, setGenerating] = useState(false);
+  const [preview, setPreview] = useState<LogoAsset | null>(null);
 
   async function generate() {
     if (!brandName.trim()) {
@@ -96,6 +98,31 @@ export function LogoBuilderModule() {
   }
 
   function downloadUrl(url: string, name: string) {
+    // For data: URLs (base64), we need to fetch → blob → object URL to
+    // make sure the download attribute triggers an actual file download
+    // instead of opening the image in a new browser tab.
+    if (url.startsWith("data:")) {
+      try {
+        const [meta, b64] = url.split(",");
+        const mimeMatch = meta.match(/data:([^;]+)/);
+        const mime = mimeMatch ? mimeMatch[1] : "image/png";
+        const byteString = atob(b64);
+        const bytes = new Uint8Array(byteString.length);
+        for (let i = 0; i < byteString.length; i++) bytes[i] = byteString.charCodeAt(i);
+        const blob = new Blob([bytes], { type: mime });
+        const objUrl = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = objUrl;
+        a.download = `${name.toLowerCase().replace(/\s+/g, "-")}-logo.png`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(objUrl);
+        return;
+      } catch {
+        // fall through to default behavior
+      }
+    }
     const a = document.createElement("a");
     a.href = url;
     a.download = `${name.toLowerCase().replace(/\s+/g, "-")}-logo.png`;
@@ -103,6 +130,10 @@ export function LogoBuilderModule() {
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+  }
+
+  function copyPrompt(p: string) {
+    navigator.clipboard.writeText(p).then(() => toast.success("Prompt copied to clipboard"));
   }
 
   return (
@@ -217,7 +248,7 @@ export function LogoBuilderModule() {
         <Card className="lg:col-span-3">
           <CardHeader>
             <CardTitle className="text-base">Your logos</CardTitle>
-            <CardDescription className="text-xs">{logos.length} saved · click to download</CardDescription>
+            <CardDescription className="text-xs">{logos.length} saved · click any logo to preview &amp; download</CardDescription>
           </CardHeader>
           <CardContent>
             {logos.length === 0 ? (
@@ -228,7 +259,11 @@ export function LogoBuilderModule() {
             ) : (
               <div className="grid gap-4 sm:grid-cols-2">
                 {logos.map((l) => (
-                  <div key={l.id} className="rounded-lg border overflow-hidden bg-white">
+                  <div
+                    key={l.id}
+                    className="rounded-lg border overflow-hidden bg-white cursor-pointer hover:ring-2 hover:ring-emerald-300 hover:border-emerald-300 transition group relative"
+                    onClick={() => setPreview(l)}
+                  >
                     <div className="aspect-[2/1] flex items-center justify-center bg-slate-50 relative">
                       {l.imageUrl ? (
                         <img src={l.imageUrl} alt={l.brandName} className="max-w-full max-h-full object-contain" />
@@ -237,6 +272,12 @@ export function LogoBuilderModule() {
                       ) : (
                         <div className="text-xs text-muted-foreground">No preview</div>
                       )}
+                      {/* hover overlay showing it's clickable */}
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition">
+                        <div className="opacity-0 group-hover:opacity-100 transition bg-white/95 rounded-full px-3 py-1.5 text-xs font-medium flex items-center gap-1.5">
+                          <Maximize2 className="h-3 w-3" /> Click to preview
+                        </div>
+                      </div>
                     </div>
                     <div className="p-3 border-t">
                       <div className="flex items-center justify-between">
@@ -248,7 +289,16 @@ export function LogoBuilderModule() {
                             <span className="text-[10px] text-muted-foreground">{formatDateTime(l.createdAt)}</span>
                           </div>
                         </div>
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 w-7 p-0"
+                            onClick={() => setPreview(l)}
+                            title="Preview"
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                          </Button>
                           <Button
                             size="sm"
                             variant="ghost"
@@ -283,6 +333,95 @@ export function LogoBuilderModule() {
           </CardContent>
         </Card>
       </div>
+
+      {/* PREVIEW DIALOG */}
+      <Dialog open={!!preview} onOpenChange={(o) => !o && setPreview(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <PenTool className="h-4 w-4" /> {preview?.brandName}
+            </DialogTitle>
+          </DialogHeader>
+          {preview && (
+            <div className="space-y-4">
+              {/* Large preview */}
+              <div className="aspect-[2/1] flex items-center justify-center bg-slate-50 rounded-lg border overflow-hidden p-6">
+                {preview.imageUrl ? (
+                  <img src={preview.imageUrl} alt={preview.brandName} className="max-w-full max-h-full object-contain" />
+                ) : preview.svgContent ? (
+                  <div dangerouslySetInnerHTML={{ __html: preview.svgContent }} className="max-w-full max-h-full" />
+                ) : (
+                  <div className="text-sm text-muted-foreground">No preview available</div>
+                )}
+              </div>
+
+              {/* Metadata */}
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div>
+                  <div className="text-muted-foreground">Style</div>
+                  <div className="font-medium capitalize">{preview.style}</div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground">Type</div>
+                  <div className="font-medium">{preview.imageUrl ? "AI-generated PNG" : "SVG template"}</div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground">Palette</div>
+                  <div className="flex items-center gap-1 mt-0.5">
+                    {preview.palette.map((c) => (
+                      <div key={c} className="h-3 w-3 rounded-full border" style={{ background: c }} />
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground">Created</div>
+                  <div className="font-medium">{formatDateTime(preview.createdAt)}</div>
+                </div>
+              </div>
+
+              {preview.tagline && (
+                <div className="text-xs">
+                  <div className="text-muted-foreground">Tagline</div>
+                  <div className="font-medium italic">{preview.tagline}</div>
+                </div>
+              )}
+
+              {preview.prompt && (
+                <div className="text-xs">
+                  <div className="text-muted-foreground mb-1">Prompt</div>
+                  <div className="font-mono text-[11px] bg-muted p-2 rounded break-words">{preview.prompt}</div>
+                </div>
+              )}
+
+              {/* Action buttons */}
+              <div className="flex flex-wrap gap-2 pt-2">
+                {preview.imageUrl && (
+                  <Button
+                    onClick={() => downloadUrl(preview.imageUrl!, preview.brandName)}
+                  >
+                    <Download className="h-4 w-4 mr-1.5" /> Download PNG
+                  </Button>
+                )}
+                {preview.svgContent && (
+                  <Button
+                    onClick={() => downloadSvg(preview.svgContent!, preview.brandName)}
+                  >
+                    <Download className="h-4 w-4 mr-1.5" /> Download SVG
+                  </Button>
+                )}
+                {preview.prompt && (
+                  <Button variant="outline" onClick={() => copyPrompt(preview.prompt)}>
+                    <Copy className="h-4 w-4 mr-1.5" /> Copy prompt
+                  </Button>
+                )}
+                <DialogClose asChild>
+                  <Button variant="outline" className="ml-auto">Close</Button>
+                </DialogClose>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 interface Body {
   title: string;
@@ -11,7 +12,19 @@ interface Body {
 }
 
 // Simulated video render — in production this would call a service like
-// Runway / Pika / Synthesia / Mux.
+// Runway / Pika / Synthesia / Mux. For this demo, we return:
+//   - thumbnailUrl: a stock image used as the <video poster=...>
+//   - videoUrl: a small royalty-free sample MP4 so the <video> element
+//               actually plays in the UI (Google's sample bucket).
+//   - scenes: 3-5 parsed scene cards for the storyboard panel
+
+// Royalty-free sample MP4s (Google Cloud sample bucket — small, fast, playable)
+const SAMPLE_VIDEOS = [
+  "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+  "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
+  "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+  "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
+];
 
 export async function POST(req: NextRequest) {
   try {
@@ -26,7 +39,7 @@ export async function POST(req: NextRequest) {
     // Simulate render time
     await new Promise((r) => setTimeout(r, 1400));
 
-    // Pick a stock thumbnail (placeholder)
+    // Pick a stock thumbnail (placeholder poster image)
     const thumbnails = [
       "https://images.unsplash.com/photo-1551434678-e076c223a692?w=800&q=80",
       "https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=800&q=80",
@@ -34,16 +47,19 @@ export async function POST(req: NextRequest) {
       "https://images.unsplash.com/photo-1581291518857-4e27b48ff24e?w=800&q=80",
     ];
     const thumbnailUrl = thumbnails[Math.floor(Math.random() * thumbnails.length)];
+    const videoUrl = SAMPLE_VIDEOS[Math.floor(Math.random() * SAMPLE_VIDEOS.length)];
 
     return NextResponse.json({
       ok: true,
       video: {
         scenes,
         thumbnailUrl,
+        videoUrl,
         durationSec: body.durationSec,
         status: "done" as const,
         createdAt: new Date().toISOString(),
       },
+      note: "Demo mode: a royalty-free sample MP4 is returned as videoUrl so the <video> element plays. In production, replace with a real render service (Runway / Pika / Mux).",
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

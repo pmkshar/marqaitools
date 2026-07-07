@@ -15,13 +15,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogClose,
-} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import {
   Video,
@@ -71,7 +64,8 @@ export function VideoModule() {
   const [style, setStyle] = useState<VideoProject["style"]>("social-short");
   const [aspectRatio, setAspectRatio] = useState<VideoProject["aspectRatio"]>("9:16");
   const [generating, setGenerating] = useState(false);
-  const [previewVideo, setPreviewVideo] = useState<VideoProject | null>(null);
+  // Inline player state — replaces the old popup Dialog
+  const [activeVideo, setActiveVideo] = useState<VideoProject | null>(null);
 
   async function generate() {
     if (!title.trim() || !script.trim()) {
@@ -106,11 +100,15 @@ export function VideoModule() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Render failed");
-      updateVideo(newVideo.id, {
-        status: "done",
+      const patch = {
+        status: "done" as const,
         scenes: data.video.scenes,
         thumbnailUrl: data.video.thumbnailUrl,
-      });
+        videoUrl: data.video.videoUrl,
+      };
+      updateVideo(newVideo.id, patch);
+      // Auto-open the inline player for the freshly rendered video
+      setActiveVideo({ ...newVideo, ...patch });
       toast.success("Video rendered");
       setTitle("");
       setScript("");
@@ -127,14 +125,39 @@ export function VideoModule() {
       case "16:9":
         return "aspect-video";
       case "9:16":
-        return "aspect-[9/16] max-h-[400px] mx-auto";
+        return "aspect-[9/16] max-h-[500px] mx-auto";
       case "1:1":
-        return "aspect-square max-w-[400px] mx-auto";
+        return "aspect-square max-w-[500px] mx-auto";
       case "4:5":
-        return "aspect-[4/5] max-h-[400px] mx-auto";
+        return "aspect-[4/5] max-h-[500px] mx-auto";
       default:
         return "aspect-video";
     }
+  }
+
+  function downloadVideo(v: VideoProject) {
+    if (!v.videoUrl) {
+      toast.error("No video file available");
+      return;
+    }
+    // Fetch → blob → object URL so the download attribute works for cross-origin MP4s
+    fetch(v.videoUrl)
+      .then((r) => r.blob())
+      .then((blob) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${v.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.mp4`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        toast.success("Video download started");
+      })
+      .catch(() => {
+        // Fallback: open in new tab
+        window.open(v.videoUrl, "_blank");
+      });
   }
 
   return (
@@ -236,11 +259,97 @@ export function VideoModule() {
         </Card>
       </div>
 
+      {/* INLINE PLAYER — replaces the old popup Dialog */}
+      {activeVideo && (
+        <Card className="border-primary/30">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Video className="h-4 w-4 text-primary" /> {activeVideo.title}
+              </CardTitle>
+              <Button size="sm" variant="ghost" onClick={() => setActiveVideo(null)}>
+                <X className="h-3.5 w-3.5 mr-1" /> Close player
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* The actual <video> element — this is what was missing */}
+            <div className={`${aspectRatioClass(activeVideo.aspectRatio)} bg-black rounded-lg overflow-hidden`}>
+              {activeVideo.status === "rendering" ? (
+                <div className="w-full h-full flex items-center justify-center">
+                  <Loader2 className="h-8 w-8 animate-spin text-white/70" />
+                </div>
+              ) : activeVideo.videoUrl ? (
+                <video
+                  key={activeVideo.videoUrl}
+                  src={activeVideo.videoUrl}
+                  poster={activeVideo.thumbnailUrl}
+                  controls
+                  autoPlay
+                  playsInline
+                  className="w-full h-full object-contain"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-white/70 text-sm">
+                  No video file available
+                </div>
+              )}
+            </div>
+
+            {/* Metadata grid */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+              <div>
+                <Label className="text-[10px] uppercase text-muted-foreground">Duration</Label>
+                <div>{activeVideo.durationSec}s</div>
+              </div>
+              <div>
+                <Label className="text-[10px] uppercase text-muted-foreground">Aspect</Label>
+                <div>{activeVideo.aspectRatio}</div>
+              </div>
+              <div>
+                <Label className="text-[10px] uppercase text-muted-foreground">Style</Label>
+                <div className="capitalize">{activeVideo.style.replace("-", " ")}</div>
+              </div>
+              <div>
+                <Label className="text-[10px] uppercase text-muted-foreground">Scenes</Label>
+                <div>{activeVideo.scenes.length}</div>
+              </div>
+            </div>
+
+            {/* Scene breakdown */}
+            <div>
+              <Label className="text-xs uppercase text-muted-foreground">Scene breakdown</Label>
+              <div className="space-y-2 mt-2">
+                {activeVideo.scenes.map((s) => (
+                  <div key={s.index} className="p-3 rounded-lg border border-border bg-muted/30">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Badge variant="outline" className="text-[10px]">Scene {s.index}</Badge>
+                      <div className="text-xs text-muted-foreground">{s.visual}</div>
+                    </div>
+                    <div className="text-sm">{s.text}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" size="sm" onClick={() => downloadVideo(activeVideo)}>
+                <Download className="h-3.5 w-3.5 mr-1.5" /> Download MP4
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setActiveVideo(null)}>
+                Close
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Library */}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Video library</CardTitle>
-          <CardDescription>{videos.length} video{videos.length !== 1 ? "s" : ""} rendered</CardDescription>
+          <CardDescription>{videos.length} video{videos.length !== 1 ? "s" : ""} rendered · click any video to play it inline above</CardDescription>
         </CardHeader>
         <CardContent>
           {videos.length === 0 ? (
@@ -248,7 +357,11 @@ export function VideoModule() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {videos.map((v) => (
-                <div key={v.id} className="rounded-lg border border-border overflow-hidden hover:border-primary/40 transition-colors cursor-pointer" onClick={() => v.status === "done" && setPreviewVideo(v)}>
+                <div
+                  key={v.id}
+                  className={`rounded-lg border overflow-hidden transition cursor-pointer ${activeVideo?.id === v.id ? "border-primary ring-2 ring-primary/30" : "border-border hover:border-primary/40"}`}
+                  onClick={() => v.status === "done" && setActiveVideo(v)}
+                >
                   <div className={`relative ${aspectRatioClass(v.aspectRatio)} bg-muted`}>
                     {v.thumbnailUrl ? (
                       <img src={v.thumbnailUrl} alt={v.title} className="w-full h-full object-cover" />
@@ -258,7 +371,7 @@ export function VideoModule() {
                       </div>
                     )}
                     {v.status === "done" && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/30 hover:bg-black/40 transition">
                         <div className="h-12 w-12 rounded-full bg-white/90 flex items-center justify-center">
                           <Play className="h-5 w-5 text-black ml-0.5" fill="currentColor" />
                         </div>
@@ -291,71 +404,6 @@ export function VideoModule() {
           )}
         </CardContent>
       </Card>
-
-      {/* Preview modal */}
-      {previewVideo && (
-        <Dialog open onOpenChange={() => setPreviewVideo(null)}>
-          <DialogContent className="max-w-4xl">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Video className="h-4 w-4" /> {previewVideo.title}
-              </DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className={`relative ${aspectRatioClass(previewVideo.aspectRatio)} bg-black rounded-lg overflow-hidden`}>
-                {previewVideo.thumbnailUrl && (
-                  <img src={previewVideo.thumbnailUrl} alt={previewVideo.title} className="w-full h-full object-cover" />
-                )}
-                <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                  <div className="h-16 w-16 rounded-full bg-white/90 flex items-center justify-center">
-                    <Play className="h-6 w-6 text-black ml-1" fill="currentColor" />
-                  </div>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                <div>
-                  <Label className="text-[10px] uppercase text-muted-foreground">Duration</Label>
-                  <div>{previewVideo.durationSec}s</div>
-                </div>
-                <div>
-                  <Label className="text-[10px] uppercase text-muted-foreground">Aspect</Label>
-                  <div>{previewVideo.aspectRatio}</div>
-                </div>
-                <div>
-                  <Label className="text-[10px] uppercase text-muted-foreground">Style</Label>
-                  <div className="capitalize">{previewVideo.style.replace("-", " ")}</div>
-                </div>
-                <div>
-                  <Label className="text-[10px] uppercase text-muted-foreground">Scenes</Label>
-                  <div>{previewVideo.scenes.length}</div>
-                </div>
-              </div>
-              <div>
-                <Label className="text-xs uppercase text-muted-foreground">Scene breakdown</Label>
-                <div className="space-y-2 mt-2">
-                  {previewVideo.scenes.map((s) => (
-                    <div key={s.index} className="p-3 rounded-lg border border-border bg-muted/30">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Badge variant="outline" className="text-[10px]">Scene {s.index}</Badge>
-                        <div className="text-xs text-muted-foreground">{s.visual}</div>
-                      </div>
-                      <div className="text-sm">{s.text}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <div className="flex gap-2 justify-end">
-              <Button variant="outline" size="sm">
-                <Download className="h-3.5 w-3.5 mr-1.5" /> Download MP4
-              </Button>
-              <DialogClose asChild>
-                <Button size="sm">Close</Button>
-              </DialogClose>
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
     </div>
   );
 }

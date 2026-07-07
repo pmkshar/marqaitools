@@ -305,9 +305,37 @@ export function ImageModule() {
                   size="sm"
                   className="flex-1"
                   onClick={() => {
+                    // Handle both data: URLs (base64 from Z.AI SDK) and
+                    // regular URLs. For data URLs, we decode → blob →
+                    // object URL so the download attribute actually
+                    // triggers a file download instead of opening a tab.
+                    const url = previewImage.url;
+                    if (url.startsWith("data:")) {
+                      try {
+                        const [meta, b64] = url.split(",");
+                        const mimeMatch = meta.match(/data:([^;]+)/);
+                        const mime = mimeMatch ? mimeMatch[1] : "image/png";
+                        const ext = mime.split("/")[1] ?? "png";
+                        const byteString = atob(b64);
+                        const bytes = new Uint8Array(byteString.length);
+                        for (let i = 0; i < byteString.length; i++) bytes[i] = byteString.charCodeAt(i);
+                        const blob = new Blob([bytes], { type: mime });
+                        const objUrl = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = objUrl;
+                        a.download = `marqai-${previewImage.id}.${ext}`;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(objUrl);
+                        return;
+                      } catch {
+                        // fall through to default
+                      }
+                    }
                     const a = document.createElement("a");
-                    a.href = previewImage.url;
-                    a.download = `marqai-${previewImage.id}.jpg`;
+                    a.href = url;
+                    a.download = `marqai-${previewImage.id}.png`;
                     a.target = "_blank";
                     a.click();
                   }}

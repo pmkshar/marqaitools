@@ -34,16 +34,28 @@ export async function POST(req: NextRequest) {
     // ---------- AI MODE ----------
     const prompt = buildLogoPrompt(body);
     const zai = await getZai();
-    const result = await zai.images.generations.create({
+    const result: any = await zai.images.generations.create({
       model: getDefaultImageModel(),
       prompt,
       size: "1024x1024",
     });
-    const url = (result as any)?.data?.[0]?.url ?? "";
-    if (!url) {
-      return NextResponse.json({ error: "No image returned" }, { status: 502 });
+
+    // The Z.AI SDK returns images as base64, not URLs.
+    const item = result?.data?.[0];
+    const base64 = item?.base64;
+    const url = item?.url;
+
+    if (base64) {
+      const dataUrl = `data:image/png;base64,${base64}`;
+      return NextResponse.json({ ok: true, url: dataUrl, base64, format: "png", prompt });
     }
-    return NextResponse.json({ ok: true, url, prompt });
+    if (url) {
+      return NextResponse.json({ ok: true, url, prompt });
+    }
+    return NextResponse.json(
+      { error: "No image returned by Z.AI. The model may be unavailable on your plan." },
+      { status: 502 },
+    );
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return NextResponse.json({ error: msg }, { status: 500 });
