@@ -75,34 +75,52 @@ export async function POST(req: NextRequest) {
 
     // FALLBACK: Pollinations.ai — free, no API key required. Used when Z.AI
     // image generation is unavailable on the user's plan.
-    try {
-      const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(
-        prompt.slice(0, 500),
-      )}?width=1024&height=1024&nologo=true&model=flux`;
-      const imgRes = await fetch(pollinationsUrl, { signal: AbortSignal.timeout(45000) });
-      if (imgRes.ok) {
-        const buf = await imgRes.arrayBuffer();
-        const base64 = Buffer.from(buf).toString("base64");
-        const dataUrl = `data:image/png;base64,${base64}`;
-        return NextResponse.json({
-          ok: true,
-          url: dataUrl,
-          base64,
-          format: "png",
-          prompt,
-          source: "pollinations",
-          warning: `Z.AI image generation unavailable on your plan (${lastError}). Used Pollinations.ai free fallback instead.`,
-        });
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const seed = Math.floor(Math.random() * 1000000);
+        const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(
+          prompt.slice(0, 500),
+        )}?width=1024&height=1024&nologo=true&seed=${seed}`;
+        const imgRes = await fetch(pollinationsUrl, { signal: AbortSignal.timeout(45000) });
+        if (imgRes.ok) {
+          const buf = await imgRes.arrayBuffer();
+          const base64 = Buffer.from(buf).toString("base64");
+          const dataUrl = `data:image/png;base64,${base64}`;
+          return NextResponse.json({
+            ok: true,
+            url: dataUrl,
+            base64,
+            format: "png",
+            prompt,
+            source: "pollinations",
+            warning: `Z.AI image generation unavailable on your plan (${lastError}). Used Pollinations.ai free fallback instead.`,
+          });
+        }
+        if (imgRes.status === 429 || imgRes.status >= 500) {
+          await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
+          continue;
+        }
+        lastError += ` | Pollinations HTTP ${imgRes.status}`;
+        break;
+      } catch (e) {
+        lastError += ` | Pollinations attempt ${attempt + 1}: ${e instanceof Error ? e.message : String(e)}`;
+        await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
       }
-      lastError += ` | Pollinations fallback failed: HTTP ${imgRes.status}`;
-    } catch (e) {
-      lastError += ` | Pollinations fallback error: ${e instanceof Error ? e.message : String(e)}`;
     }
 
-    return NextResponse.json(
-      { error: `Logo AI generation failed. ${lastError}.` },
-      { status: 502 },
-    );
+    // FINAL FALLBACK: generate an SVG template-style logo using the brand
+    // palette so the user always gets something usable as a logo.
+    const fallbackSvg = buildTemplateLogo(body);
+    const fbBase64 = Buffer.from(fallbackSvg).toString("base64");
+    const fbDataUrl = `data:image/svg+xml;base64,${fbBase64}`;
+    return NextResponse.json({
+      ok: true,
+      svg: fallbackSvg,
+      url: fbDataUrl,
+      prompt,
+      source: "template-fallback",
+      warning: `Z.AI image gen unavailable on your plan and Pollinations.ai rate-limited. Returned an SVG template logo. Switch to "Template" mode for instant SVG logos, or upgrade your Z.AI plan to enable AI image generation.`,
+    });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return NextResponse.json({ error: msg }, { status: 500 });
