@@ -46,26 +46,23 @@ const DEFAULT_BASE_URL = "https://api.z.ai/api/paas/v4";
 const DEFAULT_MODEL = "glm-4.5-flash";
 
 // Default model for image generation. The Z.AI SDK type signature marks
-// `model` as OPTIONAL — see CreateImageGenerationBody in
-// node_modules/z-ai-web-dev-sdk/dist/index.d.ts. The official SDK README
-// example also omits it. When omitted, Z.AI uses whatever image backend
-// is configured for your account.
+// `model` as OPTIONAL, but in practice the Z.AI API rejects requests
+// without a model field with an error response that crashes the SDK
+// ("Cannot read properties of undefined (reading 'map')").
 //
 // IMPORTANT: Z.AI international (api.z.ai) and BigModel China
 // (open.bigmodel.cn) have DIFFERENT image model lineups, AND not every
-// model is available on every Z.AI plan tier. Hardcoding any specific
-// model name risks returning code 1211 "Unknown Model" for some users:
+// model is available on every Z.AI plan tier. Hardcoding any single model
+// name risks returning code 1211 "Unknown Model" for some users:
 //   - cogview-3-flash    — BigModel China ONLY. Fails on z.ai international.
-//   - cogview-4-flash    — Works on some z.ai plans but NOT all — we
-//                          observed 1211 on a user's production key even
-//                          though it worked on the sandbox key.
+//   - cogview-4-flash    — Works on some z.ai plans but NOT all.
 //   - cogview-4          — paid, available on most plans.
 //   - cogview-3-plus     — paid, available on most plans.
 //
-// STRATEGY: Default to EMPTY (omit the model field). This makes Z.AI pick
-// whatever default image model is available for the account, which works
-// across all plans. If you want to pin a specific model, set ZAI_IMAGE_MODEL
-// in your Vercel env vars.
+// STRATEGY: Routes iterate through IMAGE_MODEL_CANDIDATES (see
+// generate-image/route.ts) until one succeeds. This DEFAULT_IMAGE_MODEL
+// is only used as a single-model override when ZAI_IMAGE_MODEL env var is
+// explicitly set. Leave it empty by default so the candidate list is used.
 //
 // ALSO NOTE: The Z.AI SDK downloads the generated image and returns it as
 // base64, NOT as a URL. See node_modules/z-ai-web-dev-sdk/dist/index.js —

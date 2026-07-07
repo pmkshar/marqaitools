@@ -35,31 +35,47 @@ export async function POST(req: NextRequest) {
     const prompt = buildLogoPrompt(body);
     const zai = await getZai();
 
-    // The `model` field is OPTIONAL in the Z.AI SDK. If ZAI_IMAGE_MODEL env
-    // var is set, honor it; otherwise OMIT the field and let Z.AI pick the
-    // account's default image model. Hardcoding a model name risks 1211
-    // "Unknown Model" errors on plans that don't expose that specific model.
-    const imageModel = getDefaultImageModel();
-    const requestBody: any = { prompt, size: "1024x1024" };
-    if (imageModel) {
-      requestBody.model = imageModel;
-    }
-    const result: any = await zai.images.generations.create(requestBody);
+    // Different Z.AI plans expose different image models. Try a list until
+    // one works. See generate-image/route.ts for full rationale.
+    const IMAGE_MODELS = ["cogview-4-flash", "cogview-4", "cogview-3-plus", "cogview-3-flash"];
+    const envModel = getDefaultImageModel();
+    const modelsToTry = envModel ? [envModel] : IMAGE_MODELS;
 
-    // The Z.AI SDK returns images as base64, not URLs.
-    const item = result?.data?.[0];
-    const base64 = item?.base64;
-    const url = item?.url;
+    let lastError = "";
+    for (const model of modelsToTry) {
+      try {
+        const result: any = await zai.images.generations.create({
+          model,
+          prompt,
+          size: "1024x1024",
+        });
 
-    if (base64) {
-      const dataUrl = `data:image/png;base64,${base64}`;
-      return NextResponse.json({ ok: true, url: dataUrl, base64, format: "png", prompt });
+        const item = result?.data?.[0];
+        const base64 = item?.base64;
+        const url = item?.url;
+
+        if (base64) {
+          const dataUrl = `data:image/png;base64,${base64}`;
+          return NextResponse.json({ ok: true, url: dataUrl, base64, format: "png", prompt, model });
+        }
+        if (url) {
+          return NextResponse.json({ ok: true, url, prompt, model });
+        }
+        lastError = `Model ${model}: no image data in response`;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (msg.includes("1211") || msg.includes("reading 'map'") || msg.includes("Unknown Model")) {
+          lastError = `Model ${model}: ${msg}`;
+          continue;
+        }
+        return NextResponse.json({ error: msg, model }, { status: 500 });
+      }
     }
-    if (url) {
-      return NextResponse.json({ ok: true, url, prompt });
-    }
+
     return NextResponse.json(
-      { error: "No image returned by Z.AI. The model may be unavailable on your plan." },
+      {
+        error: `No image model worked on your Z.AI plan. Tried: ${modelsToTry.join(", ")}. Last error: ${lastError}.`,
+      },
       { status: 502 },
     );
   } catch (e) {

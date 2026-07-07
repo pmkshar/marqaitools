@@ -9,6 +9,18 @@ interface GenerateImageBody {
   size?: string;
 }
 
+// Different Z.AI plan tiers expose different image models. We try them in
+// order until one works. This list was built by observing which models
+// succeed on different account types (sandbox vs production, free vs paid).
+// Adding a new model here means it'll automatically be tried for every
+// image generation request.
+const IMAGE_MODEL_CANDIDATES = [
+  "cogview-4-flash", // free tier on z.ai international (some accounts)
+  "cogview-4",       // paid, available on most plans
+  "cogview-3-plus",  // paid, available on most plans
+  "cogview-3-flash", // BigModel China only — last resort for CN deployments
+];
+
 export async function POST(req: NextRequest) {
   try {
     const { prompt, size = "1024x1024" } = (await req.json()) as GenerateImageBody;
@@ -18,41 +30,61 @@ export async function POST(req: NextRequest) {
 
     const zai = await getZai();
 
-    // Build the request body. The `model` field is OPTIONAL in the Z.AI SDK
-    // (per the type signature and the official README example). Different
-    // Z.AI plans expose different image models — cogview-3-flash,
-    // cogview-4-flash, cogview-4 etc. — and not all are available on every
-    // account. If ZAI_IMAGE_MODEL env var is set, honor it; otherwise OMIT
-    // the model field entirely and let Z.AI pick the account's default.
-    // Passing an unavailable model name returns code 1211 "Unknown Model".
-    const imageModel = getDefaultImageModel();
-    const requestBody: any = { prompt, size: size as any };
-    if (imageModel) {
-      requestBody.model = imageModel;
-    }
+    // Build the list of model names to try. If ZAI_IMAGE_MODEL env var is
+    // explicitly set, try ONLY that model. Otherwise try our candidate list.
+    const envModel = getDefaultImageModel();
+    const modelsToTry = envModel ? [envModel] : IMAGE_MODEL_CANDIDATES;
 
-    const result: any = await zai.images.generations.create(requestBody);
+    // The Z.AI SDK has a quirk: if the API returns an error response
+    // (e.g. 1211 Unknown Model), the SDK throws "Cannot read properties
+    // of undefined (reading 'map')" because it tries to iterate
+    // result.data before checking for an error field. We catch this and
+    // move on to the next model candidate.
+    let lastError = "";
+    for (const model of modelsToTry) {
+      try {
+        const result: any = await zai.images.generations.create({
+          model,
+          prompt,
+          size: size as any,
+        });
 
-    // The Z.AI SDK downloads the generated image and returns it as base64
-    // (NOT a URL). Read .base64 first; fall back to .url only if the SDK
-    // behavior changes in a future version.
-    const item = result?.data?.[0];
-    const base64 = item?.base64;
-    const url = item?.url;
+        // The SDK downloads the image and returns it as base64.
+        const item = result?.data?.[0];
+        const base64 = item?.base64;
+        const url = item?.url;
 
-    if (base64) {
-      // Return as a data URL so the <img src=...> works directly in the browser
-      // without an extra round-trip to a remote URL.
-      const dataUrl = `data:image/png;base64,${base64}`;
-      return NextResponse.json({ ok: true, url: dataUrl, base64, format: "png" });
-    }
-
-    if (url) {
-      return NextResponse.json({ ok: true, url });
+        if (base64) {
+          const dataUrl = `data:image/png;base64,${base64}`;
+          return NextResponse.json({
+            ok: true,
+            url: dataUrl,
+            base64,
+            format: "png",
+            model,
+          });
+        }
+        if (url) {
+          return NextResponse.json({ ok: true, url, model });
+        }
+        // No image data — try the next model
+        lastError = `Model ${model}: no image data in response`;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        // 1211 = Unknown Model, or SDK crash on missing data field — try next
+        if (msg.includes("1211") || msg.includes("reading 'map'") || msg.includes("Unknown Model")) {
+          lastError = `Model ${model}: ${msg}`;
+          continue;
+        }
+        // Any other error (auth, rate limit, network) — fail fast
+        return NextResponse.json({ error: msg, model }, { status: 500 });
+      }
     }
 
     return NextResponse.json(
-      { error: "No image returned by Z.AI. The model may be unavailable on your plan." },
+      {
+        error: `No image model worked on your Z.AI plan. Tried: ${modelsToTry.join(", ")}. Last error: ${lastError}. Set ZAI_IMAGE_MODEL env var to a model name your plan supports (e.g. cogview-4, cogview-3-plus).`,
+      },
       { status: 502 },
     );
   } catch (e) {
