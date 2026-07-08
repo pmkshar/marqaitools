@@ -746,11 +746,12 @@ function BugDetailDialog({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <div className="flex items-center gap-2">
+      <DialogContent className="max-w-7xl w-[98vw] max-h-[94vh] gap-0 p-0 overflow-hidden flex flex-col">
+        {/* Header — full width */}
+        <DialogHeader className="px-6 pt-5 pb-3 border-b shrink-0">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="font-mono text-sm font-semibold text-violet-700 dark:text-violet-300">{bug.displayId}</span>
-            <DialogTitle className="text-lg">{bug.title}</DialogTitle>
+            <DialogTitle className="text-lg leading-tight">{bug.title}</DialogTitle>
           </div>
           <DialogDescription>
             Reported by <strong>{bug.reporterName}</strong> on {formatDateTime(bug.createdAt)} ·
@@ -758,215 +759,253 @@ function BugDetailDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {/* Meta row */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 py-3 border-y">
-          <MetaField label="Product">
-            <Badge variant="outline" className={bug.productType === "ai" ? "text-cyan-700 dark:text-cyan-300 border-cyan-300" : "text-amber-700 dark:text-amber-300 border-amber-300"}>
-              {bug.productType === "ai" ? "AI Tool" : "Non-AI Tool"}
-            </Badge>
-          </MetaField>
-          <MetaField label="Module">
-            <span className="text-sm font-medium">{bug.module}</span>
-          </MetaField>
-          <MetaField label="Environment">
-            <span className="text-sm">{bug.environment}{bug.environmentDetails ? ` · ${bug.environmentDetails}` : ""}</span>
-          </MetaField>
-          <MetaField label="Methodology">
-            {methodology ? (
-              <Badge variant="outline" className="text-[10px]">
-                {methodology.categoryName} · {methodology.name}
-              </Badge>
-            ) : (
-              <span className="text-xs text-muted-foreground italic">Not linked</span>
-            )}
-          </MetaField>
+        {/* Body — horizontal split: sidebar + main content */}
+        <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] flex-1 min-h-0 overflow-hidden">
+          {/* LEFT SIDEBAR — sticky metadata */}
+          <div className="border-r bg-muted/20 p-4 overflow-y-auto scroll-thin space-y-4">
+            <SidebarSection title="Classification">
+              <MetaField label="Product">
+                <Badge variant="outline" className={bug.productType === "ai" ? "text-cyan-700 dark:text-cyan-300 border-cyan-300" : "text-amber-700 dark:text-amber-300 border-amber-300"}>
+                  {bug.productType === "ai" ? "AI Tool" : "Non-AI Tool"}
+                </Badge>
+              </MetaField>
+              <MetaField label="Module">
+                <span className="text-sm font-medium">{bug.module}</span>
+              </MetaField>
+              <MetaField label="Environment">
+                <span className="text-sm">{bug.environment}{bug.environmentDetails ? ` · ${bug.environmentDetails}` : ""}</span>
+              </MetaField>
+              <MetaField label="Methodology">
+                {methodology ? (
+                  <Badge variant="outline" className="text-[10px]">
+                    {methodology.categoryName} · {methodology.name}
+                  </Badge>
+                ) : (
+                  <span className="text-xs text-muted-foreground italic">Not linked</span>
+                )}
+              </MetaField>
+            </SidebarSection>
 
-          <MetaField label="Severity">
-            {canManage ? (
-              <Select value={bug.severity} onValueChange={(v) => setBugSeverity(bug.id, v as BugSeverity, actorName, actorRole)}>
-                <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {(Object.keys(SEVERITY_META) as BugSeverity[]).map((s) => (
-                    <SelectItem key={s} value={s}>{SEVERITY_META[s].label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : (
-              <span className={`text-xs px-2 py-0.5 rounded border ${SEVERITY_META[bug.severity].bg} ${SEVERITY_META[bug.severity].color}`}>
-                {SEVERITY_META[bug.severity].label}
-              </span>
-            )}
-          </MetaField>
-          <MetaField label="Priority">
-            {canManage ? (
-              <Select value={bug.priority} onValueChange={(v) => setBugPriority(bug.id, v as BugPriority, actorName, actorRole)}>
-                <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {(Object.keys(PRIORITY_META) as BugPriority[]).map((p) => (
-                    <SelectItem key={p} value={p}>{PRIORITY_META[p].label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : (
-              <span className={`text-sm font-bold ${PRIORITY_META[bug.priority].color}`}>{PRIORITY_META[bug.priority].label}</span>
-            )}
-          </MetaField>
-          <MetaField label="Status">
-            {canManage ? (
-              <Select value={bug.status} onValueChange={(v) => setBugStatus(bug.id, v as BugStatus, actorName, actorRole)}>
-                <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {(Object.keys(STATUS_META) as BugStatus[]).map((s) => (
-                    <SelectItem key={s} value={s}>{STATUS_META[s].label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : (
-              <span className={`text-xs px-2 py-0.5 rounded border ${STATUS_META[bug.status].bg} ${STATUS_META[bug.status].color}`}>
-                {STATUS_META[bug.status].label}
-              </span>
-            )}
-          </MetaField>
-          <MetaField label="Resolution">
-            {canManage ? (
-              <Select value={bug.resolution} onValueChange={(v) => setBugResolution(bug.id, v as BugResolution, actorName, actorRole)}>
-                <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {(Object.keys(RESOLUTION_LABELS) as BugResolution[]).map((r) => (
-                    <SelectItem key={r} value={r}>{RESOLUTION_LABELS[r]}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : (
-              <span className="text-sm">{RESOLUTION_LABELS[bug.resolution]}</span>
-            )}
-          </MetaField>
+            <SidebarSection title="Triage">
+              <MetaField label="Severity">
+                {canManage ? (
+                  <Select value={bug.severity} onValueChange={(v) => setBugSeverity(bug.id, v as BugSeverity, actorName, actorRole)}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {(Object.keys(SEVERITY_META) as BugSeverity[]).map((s) => (
+                        <SelectItem key={s} value={s}>{SEVERITY_META[s].label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <span className={`text-xs px-2 py-0.5 rounded border ${SEVERITY_META[bug.severity].bg} ${SEVERITY_META[bug.severity].color}`}>
+                    {SEVERITY_META[bug.severity].label}
+                  </span>
+                )}
+              </MetaField>
+              <MetaField label="Priority">
+                {canManage ? (
+                  <Select value={bug.priority} onValueChange={(v) => setBugPriority(bug.id, v as BugPriority, actorName, actorRole)}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {(Object.keys(PRIORITY_META) as BugPriority[]).map((p) => (
+                        <SelectItem key={p} value={p}>{PRIORITY_META[p].label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <span className={`text-sm font-bold ${PRIORITY_META[bug.priority].color}`}>{PRIORITY_META[bug.priority].label}</span>
+                )}
+              </MetaField>
+              <MetaField label="Status">
+                {canManage ? (
+                  <Select value={bug.status} onValueChange={(v) => setBugStatus(bug.id, v as BugStatus, actorName, actorRole)}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {(Object.keys(STATUS_META) as BugStatus[]).map((s) => (
+                        <SelectItem key={s} value={s}>{STATUS_META[s].label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <span className={`text-xs px-2 py-0.5 rounded border ${STATUS_META[bug.status].bg} ${STATUS_META[bug.status].color}`}>
+                    {STATUS_META[bug.status].label}
+                  </span>
+                )}
+              </MetaField>
+              <MetaField label="Resolution">
+                {canManage ? (
+                  <Select value={bug.resolution} onValueChange={(v) => setBugResolution(bug.id, v as BugResolution, actorName, actorRole)}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {(Object.keys(RESOLUTION_LABELS) as BugResolution[]).map((r) => (
+                        <SelectItem key={r} value={r}>{RESOLUTION_LABELS[r]}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <span className="text-sm">{RESOLUTION_LABELS[bug.resolution]}</span>
+                )}
+              </MetaField>
+            </SidebarSection>
 
-          <MetaField label="Assignee">
-            {canManage ? (
-              <Select
-                value={bug.assigneeUserId ?? "unassigned"}
-                onValueChange={(v) => {
-                  const tm = teamMembers.find((m) => m.userId === v);
-                  if (tm) assignBug(bug.id, tm.userId, tm.name, actorName, actorRole);
-                }}
-              >
-                <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="unassigned">Unassigned</SelectItem>
-                  {teamMembers.map((m) => (
-                    <SelectItem key={m.userId} value={m.userId}>{m.name} · {m.roleName}</SelectItem>
+            <SidebarSection title="Ownership">
+              <MetaField label="Reporter">
+                <span className="text-sm">{bug.reporterName}</span>
+              </MetaField>
+              <MetaField label="Assignee">
+                {canManage ? (
+                  <Select
+                    value={bug.assigneeUserId ?? "unassigned"}
+                    onValueChange={(v) => {
+                      const tm = teamMembers.find((m) => m.userId === v);
+                      if (tm) assignBug(bug.id, tm.userId, tm.name, actorName, actorRole);
+                    }}
+                  >
+                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="unassigned">Unassigned</SelectItem>
+                      {teamMembers.map((m) => (
+                        <SelectItem key={m.userId} value={m.userId}>{m.name} · {m.roleName}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <span className="text-sm">{bug.assigneeName ?? <span className="text-muted-foreground italic">Unassigned</span>}</span>
+                )}
+              </MetaField>
+            </SidebarSection>
+
+            <SidebarSection title="Tags & Links">
+              <MetaField label="Tags">
+                <div className="flex flex-wrap gap-1">
+                  {bug.tags.length === 0 ? (
+                    <span className="text-xs text-muted-foreground italic">No tags</span>
+                  ) : bug.tags.map((t) => (
+                    <Badge key={t} variant="outline" className="text-[10px] py-0 px-1.5">{t}</Badge>
                   ))}
-                </SelectContent>
-              </Select>
-            ) : (
-              <span className="text-sm">{bug.assigneeName ?? <span className="text-muted-foreground italic">Unassigned</span>}</span>
-            )}
-          </MetaField>
-          <MetaField label="Tags">
-            <div className="flex flex-wrap gap-1">
-              {bug.tags.map((t) => (
-                <Badge key={t} variant="outline" className="text-[10px] py-0 px-1.5">{t}</Badge>
-              ))}
-            </div>
-          </MetaField>
-          {bug.externalIssueUrl && (
-            <MetaField label="External">
-              <a href={bug.externalIssueUrl} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline">
-                {bug.externalIssueUrl}
-              </a>
-            </MetaField>
-          )}
-        </div>
-
-        {/* Description + repro */}
-        <div className="space-y-4">
-          <div>
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Description</h4>
-            <p className="text-sm leading-relaxed">{bug.description}</p>
-          </div>
-          <div className="grid md:grid-cols-2 gap-4">
-            <div>
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Repro Steps</h4>
-              <ol className="list-decimal pl-5 space-y-1 text-sm">
-                {bug.reproSteps.map((s, i) => <li key={i}>{s}</li>)}
-              </ol>
-            </div>
-            <div className="space-y-3">
-              <div>
-                <h4 className="text-xs font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-300 mb-1.5">Expected</h4>
-                <p className="text-sm leading-relaxed">{bug.expectedBehavior}</p>
-              </div>
-              <div>
-                <h4 className="text-xs font-semibold uppercase tracking-wider text-rose-700 dark:text-rose-300 mb-1.5">Actual</h4>
-                <p className="text-sm leading-relaxed">{bug.actualBehavior}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Comments */}
-        <div>
-          <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
-            <MessageSquare className="h-3.5 w-3.5" />
-            Comments &amp; History ({bug.comments.length})
-          </h4>
-          <div className="space-y-2 max-h-72 overflow-y-auto scroll-thin pr-1">
-            {bug.comments.length === 0 ? (
-              <p className="text-xs text-muted-foreground italic">No comments yet.</p>
-            ) : bug.comments.map((c) => (
-              <div key={c.id} className="rounded-md border p-2.5 bg-muted/30">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-semibold">{c.authorName}{c.authorRole ? <span className="text-muted-foreground font-normal"> · {c.authorRole}</span> : null}</span>
-                  <span className="text-[10px] text-muted-foreground">{formatDateTime(c.createdAt)}</span>
                 </div>
-                <p className={`text-sm ${c.changeKind ? "italic text-muted-foreground" : ""}`}>{c.body}</p>
-              </div>
-            ))}
-          </div>
+              </MetaField>
+              {bug.externalIssueUrl && (
+                <MetaField label="External Issue">
+                  <a href={bug.externalIssueUrl} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline break-all">
+                    {bug.externalIssueUrl}
+                  </a>
+                </MetaField>
+              )}
+            </SidebarSection>
 
-          {canManage && (
-            <div className="mt-3 space-y-2">
-              <Textarea
-                placeholder="Add a comment…"
-                value={newComment}
-                onChange={(e) => setNewComment(e.target.value)}
-                rows={2}
-                className="text-sm"
-              />
-              <div className="flex justify-end">
-                <Button size="sm" onClick={handleAddComment} disabled={!newComment.trim()}>
-                  <MessageSquare className="h-3.5 w-3.5 mr-1.5" /> Add Comment
+            {canManage && (
+              <div className="pt-3 border-t">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                  onClick={() => {
+                    if (confirm(`Delete ${bug.displayId}? This cannot be undone.`)) {
+                      deleteBug(bug.id);
+                      toast.success("Bug deleted");
+                      onClose();
+                    }
+                  }}
+                >
+                  <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Delete Bug
                 </Button>
               </div>
+            )}
+          </div>
+
+          {/* RIGHT MAIN — description, repro, comments */}
+          <div className="p-5 overflow-y-auto scroll-thin space-y-5 min-h-0">
+            {/* Description */}
+            <div>
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Description</h4>
+              <p className="text-sm leading-relaxed whitespace-pre-wrap">{bug.description}</p>
             </div>
-          )}
+
+            {/* Repro + Expected + Actual — horizontal split */}
+            <div className="grid md:grid-cols-3 gap-4">
+              <div className="md:col-span-1">
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Repro Steps</h4>
+                {bug.reproSteps.length === 0 ? (
+                  <p className="text-xs text-muted-foreground italic">No repro steps provided.</p>
+                ) : (
+                  <ol className="list-decimal pl-5 space-y-1 text-sm">
+                    {bug.reproSteps.map((s, i) => <li key={i}>{s}</li>)}
+                  </ol>
+                )}
+              </div>
+              <div className="md:col-span-1 space-y-3">
+                <div>
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-300 mb-1.5">Expected</h4>
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap">{bug.expectedBehavior || <span className="text-muted-foreground italic text-xs">Not provided</span>}</p>
+                </div>
+              </div>
+              <div className="md:col-span-1 space-y-3">
+                <div>
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-rose-700 dark:text-rose-300 mb-1.5">Actual</h4>
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap">{bug.actualBehavior || <span className="text-muted-foreground italic text-xs">Not provided</span>}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Comments */}
+            <div>
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+                <MessageSquare className="h-3.5 w-3.5" />
+                Comments &amp; History ({bug.comments.length})
+              </h4>
+              <div className="space-y-2 max-h-[40vh] overflow-y-auto scroll-thin pr-1">
+                {bug.comments.length === 0 ? (
+                  <p className="text-xs text-muted-foreground italic">No comments yet.</p>
+                ) : bug.comments.map((c) => (
+                  <div key={c.id} className="rounded-md border p-2.5 bg-muted/30">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-semibold">{c.authorName}{c.authorRole ? <span className="text-muted-foreground font-normal"> · {c.authorRole}</span> : null}</span>
+                      <span className="text-[10px] text-muted-foreground">{formatDateTime(c.createdAt)}</span>
+                    </div>
+                    <p className={`text-sm ${c.changeKind ? "italic text-muted-foreground" : ""}`}>{c.body}</p>
+                  </div>
+                ))}
+              </div>
+
+              {canManage && (
+                <div className="mt-3 space-y-2">
+                  <Textarea
+                    placeholder="Add a comment…"
+                    value={newComment}
+                    onChange={(e) => setNewComment(e.target.value)}
+                    rows={3}
+                    className="text-sm"
+                  />
+                  <div className="flex justify-end">
+                    <Button size="sm" onClick={handleAddComment} disabled={!newComment.trim()}>
+                      <MessageSquare className="h-3.5 w-3.5 mr-1.5" /> Add Comment
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
-        {/* Footer */}
-        <DialogFooter className="flex items-center justify-between">
-          {canManage ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30"
-              onClick={() => {
-                if (confirm(`Delete ${bug.displayId}? This cannot be undone.`)) {
-                  deleteBug(bug.id);
-                  toast.success("Bug deleted");
-                  onClose();
-                }
-              }}
-            >
-              <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Delete
-            </Button>
-          ) : <span />}
+        {/* Footer — full width */}
+        <DialogFooter className="px-6 py-3 border-t bg-muted/20 shrink-0">
           <DialogClose asChild>
             <Button variant="outline">Close</Button>
           </DialogClose>
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function SidebarSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-2">
+      <h5 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80">{title}</h5>
+      <div className="space-y-2.5">{children}</div>
+    </div>
   );
 }
 
@@ -1006,7 +1045,7 @@ function CreateBugDialog({
   const [methodologyId, setMethodologyId] = useState<string>("");
   const [severity, setSeverity] = useState<BugSeverity>("normal");
   const [priority, setPriority] = useState<BugPriority>("P2");
-  const [assigneeUserId, setAssigneeUserId] = useState<string>("");
+  const [assigneeUserId, setAssigneeUserId] = useState<string>("unassigned");
   const [tagsRaw, setTagsRaw] = useState("");
 
   const handleCreate = () => {
@@ -1015,7 +1054,7 @@ function CreateBugDialog({
       return;
     }
     const methodology = methodologyId ? ALL_METHODOLOGIES.find((m) => m.id === methodologyId) : null;
-    const assignee = assigneeUserId ? teamMembers.find((m) => m.userId === assigneeUserId) : null;
+    const assignee = assigneeUserId && assigneeUserId !== "unassigned" ? teamMembers.find((m) => m.userId === assigneeUserId) : null;
     const now = new Date().toISOString();
     const newBug: BugType = {
       id: uid("bug"),
@@ -1181,7 +1220,7 @@ function CreateBugDialog({
               <Select value={assigneeUserId} onValueChange={setAssigneeUserId}>
                 <SelectTrigger><SelectValue placeholder="Unassigned" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Unassigned</SelectItem>
+                  <SelectItem value="unassigned">Unassigned</SelectItem>
                   {teamMembers.map((m) => (
                     <SelectItem key={m.userId} value={m.userId}>{m.name} · {m.roleName}</SelectItem>
                   ))}
