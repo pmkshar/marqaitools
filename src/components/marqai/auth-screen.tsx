@@ -7,10 +7,34 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Sparkles, Building2, ShieldCheck, ArrowRight, Eye, EyeOff, CreditCard } from "lucide-react";
+import { Sparkles, Building2, ShieldCheck, ArrowRight, Eye, EyeOff, CreditCard, Crown, Zap } from "lucide-react";
 import { PLANS, isStripeConfigured } from "@/lib/marqai/saas";
-import { DEMO_USERS, DEMO_SUPER_ADMIN } from "@/lib/marqai/saas-seed";
+import { DEMO_USERS, DEMO_SUPER_ADMIN, type DemoUser } from "@/lib/marqai/saas-seed";
 import { toast as sonnerToast } from "sonner";
+
+// Role-color lookup mirroring BUILT_IN_ROLES + the custom "Performance Marketer" role.
+// Maps a roleName to a tailwind gradient + chip color for the avatar badge.
+const ROLE_AVATAR: Record<string, { gradient: string; ring: string }> = {
+  "Super Admin":              { gradient: "from-amber-400 to-rose-500",  ring: "ring-amber-300" },
+  "Org Owner":                { gradient: "from-emerald-400 to-teal-600",  ring: "ring-emerald-300" },
+  "Marketing Manager":        { gradient: "from-teal-400 to-cyan-600",     ring: "ring-teal-300" },
+  "SEO Specialist":           { gradient: "from-amber-400 to-orange-600",  ring: "ring-amber-300" },
+  "Social Media Manager":     { gradient: "from-rose-400 to-pink-600",     ring: "ring-rose-300" },
+  "Email Marketer":           { gradient: "from-violet-400 to-purple-600", ring: "ring-violet-300" },
+  "AI QA Analyst":            { gradient: "from-cyan-400 to-sky-600",      ring: "ring-cyan-300" },
+  "Developer":                { gradient: "from-indigo-400 to-blue-700",   ring: "ring-indigo-300" },
+  "Sales Development Rep":    { gradient: "from-amber-400 to-yellow-600",  ring: "ring-amber-300" },
+  "Viewer":                   { gradient: "from-slate-400 to-slate-600",   ring: "ring-slate-300" },
+  "Performance Marketer":     { gradient: "from-amber-400 to-rose-500",    ring: "ring-amber-300" },
+};
+
+function getAvatarStyle(roleName: string) {
+  return ROLE_AVATAR[roleName] ?? { gradient: "from-slate-400 to-slate-600", ring: "ring-slate-300" };
+}
+
+function initials(name: string) {
+  return name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
+}
 
 export function AuthScreen() {
   const login = useMarqai((s) => s.login);
@@ -97,7 +121,7 @@ export function AuthScreen() {
 
       {/* ---------- RIGHT: AUTH FORM ---------- */}
       <div className="flex items-center justify-center p-6 sm:p-10">
-        <div className="w-full max-w-md space-y-6">
+        <div className="w-full max-w-lg space-y-6">
           <div className="lg:hidden flex items-center gap-3 mb-2">
             <div className="h-10 w-10 rounded-lg marqai-gradient flex items-center justify-center">
               <Sparkles className="h-5 w-5 text-white" />
@@ -225,46 +249,72 @@ export function AuthScreen() {
           {/* ---------- DEMO ACCOUNTS ---------- */}
           <Card className="bg-muted/40">
             <CardHeader>
-              <CardTitle className="text-sm">Try a demo account</CardTitle>
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Zap className="h-4 w-4 text-amber-500" />
+                Demo logins — try every role
+              </CardTitle>
               <CardDescription className="text-xs">
-                One-click sign-in as any role to explore Marqai.
+                One-click sign-in as any role to explore Marqai. All demo passwords are <code className="px-1 py-0.5 rounded bg-background text-[10px] font-mono">demo1234</code> (super admin: <code className="px-1 py-0.5 rounded bg-background text-[10px] font-mono">super1234</code>).
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-2">
+            <CardContent className="space-y-2 max-h-[60vh] overflow-y-auto scroll-thin pr-1">
+              {/* Super Admin — pinned at top with crown */}
               <button
                 onClick={() => quickLogin(DEMO_SUPER_ADMIN.email, DEMO_SUPER_ADMIN.password)}
-                className="w-full flex items-center justify-between rounded-md border bg-background p-2.5 text-left hover:border-emerald-400 transition-colors"
+                className="w-full flex items-center justify-between rounded-md border-2 border-amber-300 bg-amber-50 dark:bg-amber-950/20 p-3 text-left hover:border-amber-500 transition-colors"
               >
-                <div className="flex items-center gap-2.5">
-                  <div className="h-8 w-8 rounded-full bg-gradient-to-br from-amber-400 to-rose-500 flex items-center justify-center text-white text-xs font-bold">
-                    SA
+                <div className="flex items-center gap-3">
+                  <div className={`h-9 w-9 rounded-full bg-gradient-to-br ${getAvatarStyle(DEMO_SUPER_ADMIN.roleName).gradient} flex items-center justify-center text-white text-xs font-bold ring-2 ring-offset-1 ${getAvatarStyle(DEMO_SUPER_ADMIN.roleName).ring}`}>
+                    {initials(DEMO_SUPER_ADMIN.name)}
                   </div>
-                  <div>
-                    <div className="text-sm font-medium">{DEMO_SUPER_ADMIN.name}</div>
-                    <div className="text-[11px] text-muted-foreground">Super Admin · Platform-level</div>
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium flex items-center gap-1.5">
+                      {DEMO_SUPER_ADMIN.name}
+                      <Crown className="h-3.5 w-3.5 text-amber-500" />
+                    </div>
+                    <div className="text-[11px] text-muted-foreground">
+                      <span className="font-medium text-amber-700 dark:text-amber-400">Super Admin</span> · Platform-level · {DEMO_SUPER_ADMIN.email}
+                    </div>
                   </div>
                 </div>
-                <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
               </button>
 
-              {DEMO_USERS.slice(0, 4).map((u) => (
-                <button
-                  key={u.id}
-                  onClick={() => quickLogin(u.email, u.password)}
-                  className="w-full flex items-center justify-between rounded-md border bg-background p-2.5 text-left hover:border-emerald-400 transition-colors"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <div className="h-8 w-8 rounded-full marqai-gradient flex items-center justify-center text-white text-xs font-bold">
-                      {u.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
-                    </div>
-                    <div>
-                      <div className="text-sm font-medium">{u.name}</div>
-                      <div className="text-[11px] text-muted-foreground">{u.roleName}</div>
-                    </div>
-                  </div>
-                  <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                </button>
-              ))}
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold pt-2 pb-1 px-1">
+                Organization users · Acme Marketing
+              </div>
+
+              {/* All 9 org demo users */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {DEMO_USERS.map((u: DemoUser) => {
+                  const style = getAvatarStyle(u.roleName);
+                  return (
+                    <button
+                      key={u.id}
+                      onClick={() => quickLogin(u.email, u.password)}
+                      className="flex items-center justify-between rounded-md border bg-background p-2.5 text-left hover:border-emerald-400 transition-colors"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className={`h-8 w-8 rounded-full bg-gradient-to-br ${style.gradient} flex items-center justify-center text-white text-[11px] font-bold shrink-0`}>
+                          {initials(u.name)}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium truncate">{u.name}</div>
+                          <div className="text-[11px] text-muted-foreground truncate">
+                            <span className="font-medium">{u.roleName}</span>
+                          </div>
+                          <div className="text-[10px] text-muted-foreground/80 truncate font-mono">{u.email}</div>
+                        </div>
+                      </div>
+                      <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="pt-2 text-[10px] text-muted-foreground/70 text-center border-t mt-2">
+                Tip: Each role unlocks a different set of modules in the sidebar — try them all to verify RBAC.
+              </div>
             </CardContent>
           </Card>
         </div>
