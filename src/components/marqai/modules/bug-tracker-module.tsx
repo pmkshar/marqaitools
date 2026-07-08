@@ -746,7 +746,7 @@ function BugDetailDialog({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-7xl w-[98vw] max-h-[94vh] gap-0 p-0 overflow-hidden flex flex-col">
+      <DialogContent className="max-w-7xl sm:max-w-7xl w-[98vw] max-h-[94vh] gap-0 p-0 overflow-hidden flex flex-col">
         {/* Header — full width */}
         <DialogHeader className="px-6 pt-5 pb-3 border-b shrink-0">
           <div className="flex items-center gap-2 flex-wrap">
@@ -1097,8 +1097,9 @@ function CreateBugDialog({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="max-w-7xl sm:max-w-7xl w-[98vw] max-h-[94vh] gap-0 p-0 overflow-hidden flex flex-col">
+        {/* Header — full width */}
+        <DialogHeader className="px-6 pt-5 pb-3 border-b shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <Bug className="h-5 w-5 text-rose-600" />
             New Bug · <span className="font-mono text-sm text-violet-700 dark:text-violet-300">{nextDisplayId}</span>
@@ -1109,134 +1110,144 @@ function CreateBugDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
-          {/* Title */}
-          <div>
-            <Label>Title *</Label>
-            <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Short, specific summary of the defect" />
-          </div>
-
-          {/* Description */}
-          <div>
-            <Label>Description *</Label>
-            <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} placeholder="What's wrong? Include any context that helps reproduction." />
-          </div>
-
-          {/* Repro + Expected + Actual */}
-          <div className="grid md:grid-cols-2 gap-3">
+        {/* Body — horizontal split: form content + metadata sidebar */}
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] flex-1 min-h-0 overflow-hidden">
+          {/* LEFT MAIN — bug content (title, description, repro, expected, actual) */}
+          <div className="p-5 overflow-y-auto scroll-thin space-y-4 min-h-0 border-r">
+            {/* Title */}
             <div>
-              <Label>Repro Steps (one per line)</Label>
-              <Textarea value={reproStepsRaw} onChange={(e) => setReproStepsRaw(e.target.value)} rows={5} placeholder={"Step 1…\nStep 2…\nStep 3…"} />
+              <Label>Title *</Label>
+              <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Short, specific summary of the defect" />
             </div>
-            <div className="space-y-3">
+
+            {/* Description */}
+            <div>
+              <Label>Description *</Label>
+              <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} placeholder="What's wrong? Include any context that helps reproduction." />
+            </div>
+
+            {/* Repro + Expected + Actual — horizontal 3-column grid */}
+            <div className="grid md:grid-cols-3 gap-3">
+              <div>
+                <Label>Repro Steps (one per line)</Label>
+                <Textarea value={reproStepsRaw} onChange={(e) => setReproStepsRaw(e.target.value)} rows={6} placeholder={"Step 1…\nStep 2…\nStep 3…"} />
+              </div>
               <div>
                 <Label>Expected Behavior</Label>
-                <Textarea value={expectedBehavior} onChange={(e) => setExpectedBehavior(e.target.value)} rows={2} />
+                <Textarea value={expectedBehavior} onChange={(e) => setExpectedBehavior(e.target.value)} rows={6} />
               </div>
               <div>
                 <Label>Actual Behavior</Label>
-                <Textarea value={actualBehavior} onChange={(e) => setActualBehavior(e.target.value)} rows={2} />
+                <Textarea value={actualBehavior} onChange={(e) => setActualBehavior(e.target.value)} rows={6} />
               </div>
             </div>
-          </div>
 
-          {/* Product + module + environment */}
-          <div className="grid md:grid-cols-3 gap-3">
+            {/* Methodology link — full width since the list is long */}
             <div>
-              <Label>Product Type *</Label>
-              <Select value={productType} onValueChange={(v) => { setProductType(v as BugProductType); setMethodologyId(""); }}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ai">AI Tool</SelectItem>
-                  <SelectItem value="non-ai">Non-AI Tool</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Module / Product Name *</Label>
-              <Input value={module} onChange={(e) => setModule(e.target.value)} placeholder="e.g. AI Sales Agents" />
-            </div>
-            <div>
-              <Label>Environment</Label>
-              <Select value={environment} onValueChange={(v) => setEnvironment(v as BugType["environment"])}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="dev">Dev</SelectItem>
-                  <SelectItem value="staging">Staging</SelectItem>
-                  <SelectItem value="production">Production</SelectItem>
-                  <SelectItem value="uat">UAT</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div>
-            <Label>Environment Details (browser / OS / device)</Label>
-            <Input value={environmentDetails} onChange={(e) => setEnvironmentDetails(e.target.value)} placeholder="e.g. Chrome 126 / macOS 14" />
-          </div>
-
-          {/* Methodology link */}
-          <div>
-            <Label>Methodology that surfaced this bug</Label>
-            <Select value={methodologyId} onValueChange={setMethodologyId}>
-              <SelectTrigger><SelectValue placeholder="Link to a methodology from the QA playbook…" /></SelectTrigger>
-              <SelectContent className="max-h-72">
-                {visibleMethodologies.map((m) => (
-                  <SelectItem key={m.id} value={m.id}>
-                    <span className="text-xs text-muted-foreground mr-1">[{m.categoryName}]</span> {m.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Severity + Priority + Assignee */}
-          <div className="grid md:grid-cols-3 gap-3">
-            <div>
-              <Label>Severity</Label>
-              <Select value={severity} onValueChange={(v) => setSeverity(v as BugSeverity)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {(Object.keys(SEVERITY_META) as BugSeverity[]).map((s) => (
-                    <SelectItem key={s} value={s}>{SEVERITY_META[s].label}</SelectItem>
+              <Label>Methodology that surfaced this bug</Label>
+              <Select value={methodologyId} onValueChange={setMethodologyId}>
+                <SelectTrigger><SelectValue placeholder="Link to a methodology from the QA playbook…" /></SelectTrigger>
+                <SelectContent className="max-h-72">
+                  {visibleMethodologies.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
+                      <span className="text-xs text-muted-foreground mr-1">[{m.categoryName}]</span> {m.name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Tags */}
             <div>
-              <Label>Priority</Label>
-              <Select value={priority} onValueChange={(v) => setPriority(v as BugPriority)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {(Object.keys(PRIORITY_META) as BugPriority[]).map((p) => (
-                    <SelectItem key={p} value={p}>{PRIORITY_META[p].label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Assignee</Label>
-              <Select value={assigneeUserId} onValueChange={setAssigneeUserId}>
-                <SelectTrigger><SelectValue placeholder="Unassigned" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="unassigned">Unassigned</SelectItem>
-                  {teamMembers.map((m) => (
-                    <SelectItem key={m.userId} value={m.userId}>{m.name} · {m.roleName}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>Tags (comma-separated)</Label>
+              <Input value={tagsRaw} onChange={(e) => setTagsRaw(e.target.value)} placeholder="e.g. ai-output-validation, qualifier, json-parse" />
             </div>
           </div>
 
-          {/* Tags */}
-          <div>
-            <Label>Tags (comma-separated)</Label>
-            <Input value={tagsRaw} onChange={(e) => setTagsRaw(e.target.value)} placeholder="e.g. ai-output-validation, qualifier, json-parse" />
+          {/* RIGHT SIDEBAR — classification / triage / ownership */}
+          <div className="bg-muted/20 p-4 overflow-y-auto scroll-thin space-y-4">
+            <SidebarSection title="Classification">
+              <div>
+                <Label>Product Type *</Label>
+                <Select value={productType} onValueChange={(v) => { setProductType(v as BugProductType); setMethodologyId(""); }}>
+                  <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ai">AI Tool</SelectItem>
+                    <SelectItem value="non-ai">Non-AI Tool</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Module / Product Name *</Label>
+                <Input value={module} onChange={(e) => setModule(e.target.value)} placeholder="e.g. AI Sales Agents" className="h-9" />
+              </div>
+              <div>
+                <Label>Environment</Label>
+                <Select value={environment} onValueChange={(v) => setEnvironment(v as BugType["environment"])}>
+                  <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="dev">Dev</SelectItem>
+                    <SelectItem value="staging">Staging</SelectItem>
+                    <SelectItem value="production">Production</SelectItem>
+                    <SelectItem value="uat">UAT</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Env Details (browser / OS / device)</Label>
+                <Input value={environmentDetails} onChange={(e) => setEnvironmentDetails(e.target.value)} placeholder="e.g. Chrome 126 / macOS 14" className="h-9" />
+              </div>
+            </SidebarSection>
+
+            <SidebarSection title="Triage">
+              <div>
+                <Label>Severity</Label>
+                <Select value={severity} onValueChange={(v) => setSeverity(v as BugSeverity)}>
+                  <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {(Object.keys(SEVERITY_META) as BugSeverity[]).map((s) => (
+                      <SelectItem key={s} value={s}>{SEVERITY_META[s].label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Priority</Label>
+                <Select value={priority} onValueChange={(v) => setPriority(v as BugPriority)}>
+                  <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {(Object.keys(PRIORITY_META) as BugPriority[]).map((p) => (
+                      <SelectItem key={p} value={p}>{PRIORITY_META[p].label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </SidebarSection>
+
+            <SidebarSection title="Ownership">
+              <div>
+                <Label>Reporter</Label>
+                <Input value={reporterName} disabled className="h-9 text-xs bg-muted/40" />
+              </div>
+              <div>
+                <Label>Assignee</Label>
+                <Select value={assigneeUserId} onValueChange={setAssigneeUserId}>
+                  <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Unassigned" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="unassigned">Unassigned</SelectItem>
+                    {teamMembers.map((m) => (
+                      <SelectItem key={m.userId} value={m.userId}>{m.name} · {m.roleName}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </SidebarSection>
           </div>
         </div>
 
-        <DialogFooter>
+        {/* Footer — full width */}
+        <DialogFooter className="px-6 py-3 border-t bg-muted/20 shrink-0">
           <DialogClose asChild>
             <Button variant="outline">Cancel</Button>
           </DialogClose>
