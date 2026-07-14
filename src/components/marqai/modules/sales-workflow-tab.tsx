@@ -434,9 +434,9 @@ function CreateWorkflowDialog({
             <Input value={tone} onChange={(e) => setTone(e.target.value)} placeholder="Direct, specific, no fluff" />
           </div>
 
-          <div className="rounded-md border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800 p-3 text-xs text-amber-800 dark:text-amber-300">
-            <AlertTriangle className="h-3.5 w-3.5 inline mr-1.5" />
-            <strong>Stage 1 — AI-driven contact enrichment:</strong> Since real-time scraping is not available in this environment, the AI will predict the most likely decision-makers based on the company's website, LinkedIn footprint, and what we sell. Always verify each contact before sending.
+          <div className="rounded-md border border-emerald-200 bg-emerald-50 dark:bg-emerald-950/20 dark:border-emerald-800 p-3 text-xs text-emerald-800 dark:text-emerald-300">
+            <CheckCircle2 className="h-3.5 w-3.5 inline mr-1.5" />
+            <strong>Stage 1 — Live web scraping:</strong> The AI agent will actually fetch the company's website (homepage + /contact, /about, /team, /leadership pages) and run web searches for the company's leadership team, then extract real email addresses, phone numbers, and LinkedIn profiles from the live HTML. Each contact will show the source URL so you can verify it. If a company hides its team page, you'll see "no contacts found" — never invented data.
           </div>
         </div>
 
@@ -583,9 +583,16 @@ function ScrapeStageCard({ lead }: { lead: SalesWorkflowLead }) {
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data.error || "Scrape failed");
       setWorkflowScrapedContacts(lead.id, data.contacts as ScrapedContact[]);
-      toast.success(`Scraped ${data.contacts.length} contacts`, {
-        description: data.source === "fallback" ? data.warning : undefined,
-      });
+      const foundCount = data.contacts.length;
+      const sourceCount = data.sources?.length ?? 0;
+      toast.success(
+        foundCount > 0
+          ? `Live-scraped ${foundCount} contact${foundCount === 1 ? "" : "s"} from ${sourceCount} source${sourceCount === 1 ? "" : "s"}`
+          : "Scrape complete — no contacts found",
+        {
+          description: data.evidenceSummary ?? data.warning,
+        },
+      );
     } catch (e) {
       toast.error("Scrape failed", { description: e instanceof Error ? e.message : String(e) });
     } finally {
@@ -641,8 +648,12 @@ function ScrapeStageCard({ lead }: { lead: SalesWorkflowLead }) {
         {/* Scraped contacts list */}
         {lead.scrapedContacts.length > 0 && (
           <div className="rounded-md border">
-            <div className="p-2 bg-muted/40 border-b text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Scraped Contacts ({lead.scrapedContacts.length})
+            <div className="p-2 bg-muted/40 border-b text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+              <span>Scraped Contacts ({lead.scrapedContacts.length})</span>
+              <span className="text-[10px] font-normal normal-case text-emerald-700 dark:text-emerald-300">
+                <CheckCircle2 className="h-3 w-3 inline mr-1" />
+                Live-scraped from real web pages
+              </span>
             </div>
             <div className="divide-y">
               {lead.scrapedContacts.map((c) => (
@@ -667,6 +678,15 @@ function ScrapeStageCard({ lead }: { lead: SalesWorkflowLead }) {
                     </div>
                     {c.relevanceNote && (
                       <p className="text-[11px] text-muted-foreground italic mt-1">{c.relevanceNote}</p>
+                    )}
+                    {c.sourceUrl && (
+                      <p className="text-[10px] mt-1">
+                        <Globe className="h-3 w-3 inline mr-1 text-muted-foreground" />
+                        <span className="text-muted-foreground">Source: </span>
+                        <a href={c.sourceUrl} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline truncate inline-block max-w-full align-bottom">
+                          {c.sourceUrl.length > 70 ? c.sourceUrl.slice(0, 67) + "…" : c.sourceUrl}
+                        </a>
+                      </p>
                     )}
                   </div>
                   {lead.scrapeStatus === "awaiting_client" && c.clientConfirmed && (

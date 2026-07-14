@@ -845,6 +845,8 @@ export interface ScrapedContact {
   relevanceNote?: string;
   /** Confidence 0-100 — LLM's stated confidence the contact info is accurate. */
   confidence: number;
+  /** URL where this contact was actually found during live scraping. */
+  sourceUrl?: string;
   /** Did the client (operator using Marqai) confirm this contact? */
   clientConfirmed: boolean;
 }
