@@ -90,6 +90,105 @@ function isJunkEmail(s: string): boolean {
 
 function dedupe<T>(arr: T[]): T[] { return Array.from(new Set(arr)); }
 
+// Clean an extracted email: strip trailing punctuation, backslashes, and
+// other artifacts that the regex picks up from HTML-escaped text.
+function cleanEmail(raw: string): string {
+  let s = raw.toLowerCase().trim();
+  // Strip trailing backslashes, quotes, commas, semicolons, whitespace.
+  s = s.replace(/[\s\\/"';,)>]+$/g, "");
+  // Strip leading backslashes, quotes, etc.
+  s = s.replace(/^[\\/"'<(]+/g, "");
+  // If the email has escaped chars in the middle (like \\), remove them.
+  s = s.replace(/\\/g, "");
+  return s;
+}
+
+// Detect obvious placeholder / demo / template names that appear on example
+// sites (acme.com, example.com, demo templates, etc.). These should never
+// become "contacts" — they're not real people.
+const PLACEHOLDER_NAMES = new Set([
+  "jon doe", "john doe", "jane doe", "john smith", "jane smith",
+  "john q public", "mary smith", "warner brothers", "lorem ipsum",
+  "test user", "demo user", "example user", "sample user",
+  "first last", "your name", "admin admin", "user user",
+  "foo bar", "johnny appleseed", "john appleseed",
+  "mickey mouse", "donald duck", "bugs bunny",
+]);
+function isPlaceholderName(lower: string, sourceUrl?: string): boolean {
+  if (PLACEHOLDER_NAMES.has(lower)) return true;
+  // Catch "first last", "test test", etc.
+  const parts = lower.split(/\s+/);
+  if (parts.length === 2 && parts[0] === parts[1]) return true;
+  // Catch names that include "example" or "demo" or "test".
+  if (/\b(example|demo|sample|test|placeholder|fake)\b/.test(lower)) return true;
+  // Catch names where either word is a common website/brand/stop word that
+  // findNearbyName picks up by mistake (e.g. "Support Secure", "Reddit Is",
+  // "Privacy Policy", "Contact Us").
+  const nonNameWords = new Set([
+    "support", "secure", "reddit", "twitter", "facebook", "instagram",
+    "linkedin", "youtube", "tiktok", "medium", "substack", "github",
+    "contact", "about", "privacy", "policy", "terms", "service", "services",
+    "team", "careers", "jobs", "blog", "news", "press", "help", "faq",
+    "sign", "login", "logout", "register", "subscribe", "unsubscribe",
+    "learn", "more", "read", "view", "see", "all", "rights", "reserved",
+    "follow", "started", "free",
+    "home", "page", "site", "web",
+    "is", "are", "was", "were", "been", "being", "have", "has",
+    "had", "does", "did", "will", "would", "could", "should",
+    "might", "must", "shall",
+    "stripe", "google", "microsoft", "amazon",
+    "netflix", "spotify", "uber", "airbnb", "slack", "zoom",
+    "sentry", "wix", "wordpress",
+    // Titles / roles that get picked up as name fragments.
+    "cofounder", "co", "founder", "ceo", "cto", "cfo", "coo", "cmo",
+    "president", "vice", "vp", "director", "manager", "head", "lead",
+    "chief", "officer", "executive", "exec", "board", "member", "chairman",
+    "principal", "senior", "junior", "associate", "analyst", "specialist",
+    "coordinator", "assistant", "deputy", "general", "partner",
+    // Organizations that get picked up as name fragments.
+    "institute", "foundation", "center", "centre", "university", "college",
+    "school", "labs", "lab", "inc", "llc", "corp", "corporation",
+    "group", "association", "organization", "org", "company", "agency",
+    "markets", "distribution", "logistics", "solutions", "technologies",
+    "systems", "consulting", "partners", "enterprises", "industries",
+    // Time words.
+    "jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct",
+    "nov", "dec", "monday", "tuesday", "wednesday", "thursday", "friday",
+    "saturday", "sunday",
+    // Common page-element words that get picked up as name fragments.
+    "headshot", "photo", "image", "picture", "avatar", "profile",
+    "rating", "review", "score", "award", "badge",
+    "comparably", "clay", "dossier", "craft", "theorg",
+    "executives", "leadership", "management",
+    "directors", "top", "third", "party", "the", "our", "their",
+    "acme", "markets",
+    "how", "what", "when", "where", "why", "who", "which",
+    "we", "us", "they", "them", "you", "your", "my", "me",
+    "spend", "spending", "cost", "costs", "price", "pricing",
+    "furniture", "customer", "customers", "consumer", "consumers",
+    "order", "orders", "shipping", "delivery", "payment", "payments",
+    "product", "products", "service", "services", "platform", "application",
+    "complaint", "complaints", "email", "emails", "address", "addresses",
+    "list", "lists", "directory", "database", "record", "records",
+    "submit", "form", "forms", "survey", "surveys", "report", "reports",
+  ]);
+  if (parts.length >= 2 && parts.some((p) => nonNameWords.has(p))) return true;
+  // Catch names where the first word is only 1-2 chars (likely a stop word).
+  if (parts[0] && parts[0].length <= 2) return true;
+  // Dynamic check: if any word in the name matches the source URL's domain
+  // name, it's likely the company name being picked up as a name fragment.
+  // e.g. source "clay.com/dossier/..." → "clay" should not be in a name.
+  if (sourceUrl) {
+    try {
+      const host = new URL(sourceUrl).hostname.replace(/^www\./, "").split(".")[0].toLowerCase();
+      if (host && host.length > 2 && parts.includes(host)) return true;
+    } catch {
+      // ignore URL parse errors
+    }
+  }
+  return false;
+}
+
 function normalizeWebsite(input: string): string {
   let s = input.trim();
   if (!s) return "";
@@ -215,6 +314,27 @@ function findNearbyName(text: string, contactStr: string): string | undefined {
     const lower = n.toLowerCase();
     return !["contact us", "about us", "privacy policy", "terms of", "all rights", "follow us", "get started", "learn more", "sign up", "log in", "scroll to", "back to top", "all rights reserved", "menu close"].some((j) => lower.includes(j));
   });
+  // Prefer 2-word names over 3-word names — 3-word matches are more likely
+  // to include a job title or company name fragment (e.g. "Distribution Jeff
+  // Goldfogel" → prefer "Jeff Goldfogel"). If we have any 2-word matches
+  // that pass the placeholder filter, use those first.
+  const two = filtered.filter((n) => n.trim().split(/\s+/).length === 2);
+  const three = filtered.filter((n) => n.trim().split(/\s+/).length === 3);
+  for (const n of two) {
+    if (!isPlaceholderName(n.toLowerCase())) return n;
+  }
+  // For 3-word names, try extracting a 2-word substring that passes the filter.
+  for (const n of three) {
+    const parts = n.split(/\s+/);
+    // Try last 2 words first (most likely to be the actual name).
+    const last2 = parts.slice(1).join(" ");
+    if (!isPlaceholderName(last2.toLowerCase())) return last2;
+    // Then try first 2 words.
+    const first2 = parts.slice(0, 2).join(" ");
+    if (!isPlaceholderName(first2.toLowerCase())) return first2;
+    // Fall back to the full 3-word name if no 2-word subset passes.
+    if (!isPlaceholderName(n.toLowerCase())) return n;
+  }
   return filtered[0];
 }
 
@@ -338,27 +458,36 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Harvest emails/names/phones LINKEDIN_PROFILE_REs directly from search
+    // Harvest emails/names/phones/LinkedIn URLs directly from search
     // snippets — this is often the ONLY useful signal from LinkedIn pages.
     // Snippets frequently include text like "Patrick Collison is Stripe CEO..."
     // which gives us a name + company + role even though we can't scrape the
-    // actual LinkedIn page.
-    const snippetEmails = new Map<string, { query: string; url: string; snippet: string }>();
+    // actual LinkedIn page. When an email appears in the SAME snippet as a
+    // name, we link them so the contact list shows "Patrick Collison
+    // <patrick@stripe.com>" instead of "Unknown (email) <patrick@stripe.com>".
+    const snippetEmails = new Map<string, { query: string; url: string; snippet: string; name?: string }>();
     const snippetNames: { name: string; query: string; url: string; snippet: string }[] = [];
-    const snippetLinkedins = new Map<string, { query: string; url: string }>();
+    const snippetLinkedins = new Map<string, { query: string; url: string; snippet: string }>();
     for (const r of searchResults) {
       const combined = `${r.name} ${r.snippet}`;
-      // Emails in snippets.
+      // Emails in snippets — also try to find a name in the same snippet.
       const ems = dedupe(combined.match(EMAIL_RE) ?? []);
       for (const e of ems) {
-        const clean = e.toLowerCase();
-        if (isJunkEmail(clean)) continue;
-        if (!snippetEmails.has(clean)) snippetEmails.set(clean, { query: r.query, url: r.url, snippet: r.snippet });
+        const clean = cleanEmail(e);
+        if (!clean || isJunkEmail(clean)) continue;
+        // Try to find a name nearby in this snippet.
+        const localName = findNearbyName(combined, e) ?? findNearbyName(combined, e.split("@")[0]);
+        if (!snippetEmails.has(clean)) {
+          snippetEmails.set(clean, { query: r.query, url: r.url, snippet: r.snippet, name: localName });
+        } else if (localName && !snippetEmails.get(clean)?.name) {
+          // Update with name if we didn't have one.
+          snippetEmails.set(clean, { ...snippetEmails.get(clean)!, name: localName });
+        }
       }
       // LinkedIn URLs in snippets.
       const lis = dedupe(combined.match(LINKEDIN_PROFILE_RE) ?? []);
       for (const li of lis) {
-        if (!snippetLinkedins.has(li)) snippetLinkedins.set(li, { query: r.query, url: r.url });
+        if (!snippetLinkedins.has(li)) snippetLinkedins.set(li, { query: r.query, url: r.url, snippet: r.snippet });
       }
       // Names near CEO/founder/title keywords in snippets.
       const titleKws = ["CEO", "CTO", "founder", "co-founder", "VP", "President", "Director", "Head of"];
@@ -367,6 +496,7 @@ export async function POST(req: NextRequest) {
         for (const n of names.slice(0, 3)) {
           const lower = n.toLowerCase();
           if (lower.includes("linkedin") || lower.includes("log in") || lower.includes("sign")) continue;
+          if (isPlaceholderName(lower, r.url)) continue;
           snippetNames.push({ name: n, query: r.query, url: r.url, snippet: r.snippet });
         }
       }
@@ -388,13 +518,83 @@ export async function POST(req: NextRequest) {
 
     // Add snippet-harvested emails to allEmails first.
     for (const [email, meta] of snippetEmails) {
-      allEmails.set(email, { name: undefined, url: meta.url, source: `search snippet: "${meta.query}"`, via: "snippet" });
+      const nameToUse = meta.name && !isPlaceholderName(meta.name.toLowerCase(), meta.url) ? meta.name : undefined;
+      allEmails.set(email, { name: nameToUse, url: meta.url, source: `search snippet: "${meta.query}"`, via: "snippet" });
     }
     for (const [li, meta] of snippetLinkedins) {
       allLinkedin.set(li, { url: meta.url, source: `search snippet: "${meta.query}"` });
     }
     for (const n of snippetNames) {
       allNamesWithCtx.push({ name: n.name, url: n.url, snippet: n.snippet, source: `search snippet: "${n.query}"` });
+    }
+
+    // ---------- Apollo-style: operator-pasted LinkedIn URL handling ----------
+    // When the operator pastes a LinkedIn URL, that URL is GROUND TRUTH — it's
+    // a real person/company they want to reach. We MUST include it in the
+    // contact list, even if no other source mentioned it.
+    //
+    // For /in/<slug> URLs (personal profile), we also try to identify the
+    // person's name from the search results that mentioned the slug. The
+    // search for "<slug-as-name> <company> email" usually returns results
+    // titled "Patrick Collison - Stripe CEO - LinkedIn" which gives us both
+    // the name and the LinkedIn URL together.
+    let apolloLinkedinName: string | undefined;
+    if (linkedinUrl) {
+      // Always add the operator-provided LinkedIn URL to allLinkedin so it
+      // appears in the contact list (Priority 4 in the candidate builder).
+      if (!allLinkedin.has(linkedinUrl)) {
+        allLinkedin.set(linkedinUrl, { url: linkedinUrl, source: "operator-provided LinkedIn URL" });
+      }
+      // For /in/<slug> URLs, try to find the person's name in search results.
+      if (/\/in\//i.test(linkedinUrl)) {
+        const slug = linkedinUrl.split("/in/")[1]?.split(/[/?#]/)[0] ?? "";
+        // Look for the LinkedIn URL in search results — the matching result's
+        // title usually contains the person's full name.
+        for (const r of searchResults) {
+          if (r.url === linkedinUrl || r.url.includes(slug)) {
+            // Title looks like "Patrick Collison - Stripe CEO - LinkedIn"
+            // or "Patrick Collison | LinkedIn". Extract the name (first 2-3
+            // capitalized words before any separator).
+            const titleMatch = r.name.match(/^([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,2})/);
+            if (titleMatch) {
+              const candidateName = titleMatch[1];
+              if (!isPlaceholderName(candidateName.toLowerCase(), linkedinUrl)) {
+                apolloLinkedinName = candidateName;
+                // Also add to allNamesWithCtx so it gets picked up by Priority 3.
+                allNamesWithCtx.push({
+                  name: candidateName,
+                  url: linkedinUrl,
+                  snippet: r.name + " — " + r.snippet,
+                  source: `LinkedIn profile search: "${r.query}"`,
+                });
+                break;
+              }
+            }
+          }
+        }
+        // If we couldn't find the name from search results, try to derive it
+        // from the slug itself (works for slugs like "patrick-collison" but
+        // not "patrickcollison" — capitalization boundary is ambiguous).
+        if (!apolloLinkedinName && slug) {
+          if (slug.includes("-") || slug.includes("_") || slug.includes(".")) {
+            const parts = slug.split(/[-_.]/).filter(Boolean);
+            if (parts.length >= 2) {
+              const derived = parts.slice(0, 3)
+                .map((p) => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase())
+                .join(" ");
+              if (!isPlaceholderName(derived.toLowerCase(), linkedinUrl)) {
+                apolloLinkedinName = derived;
+                allNamesWithCtx.push({
+                  name: derived,
+                  url: linkedinUrl,
+                  snippet: `Derived from LinkedIn slug: ${slug}`,
+                  source: "operator-provided LinkedIn URL (slug-derived name)",
+                });
+              }
+            }
+          }
+        }
+      }
     }
 
     // Process Layer 1 page reads.
@@ -407,8 +607,8 @@ export async function POST(req: NextRequest) {
       // mailto: links (highest signal — these are intentional contact emails)
       const mailtos = dedupe(Array.from(page.html.matchAll(MAILTO_RE)).map((m) => m[1]).filter(Boolean));
       for (const email of mailtos) {
-        const clean = email.toLowerCase().trim();
-        if (isJunkEmail(clean)) continue;
+        const clean = cleanEmail(email);
+        if (!clean || isJunkEmail(clean)) continue;
         const existing = allEmails.get(clean);
         if (existing && existing.via !== "snippet") continue; // don't overwrite a real-page source with a snippet source
         const name = findNearbyName(text, email);
@@ -418,8 +618,8 @@ export async function POST(req: NextRequest) {
       // Plain-text emails
       const emailsOnPage = dedupe(text.match(EMAIL_RE) ?? []);
       for (const email of emailsOnPage) {
-        const clean = email.toLowerCase();
-        if (isJunkEmail(clean)) continue;
+        const clean = cleanEmail(email);
+        if (!clean || isJunkEmail(clean)) continue;
         const existing = allEmails.get(clean);
         if (existing && existing.via !== "snippet") continue;
         const name = findNearbyName(text, email);
@@ -482,16 +682,16 @@ export async function POST(req: NextRequest) {
 
         const mailtos = dedupe(Array.from(page.html.matchAll(MAILTO_RE)).map((m) => m[1]).filter(Boolean));
         for (const email of mailtos) {
-          const clean = email.toLowerCase().trim();
-          if (isJunkEmail(clean)) continue;
+          const clean = cleanEmail(email);
+          if (!clean || isJunkEmail(clean)) continue;
           if (allEmails.has(clean) && allEmails.get(clean)?.via !== "snippet") continue;
           const name = findNearbyName(text, email);
           allEmails.set(clean, { name, url: p.url, source: p.source, via: "mailto link" });
         }
         const emailsOnPage = dedupe(text.match(EMAIL_RE) ?? []);
         for (const email of emailsOnPage) {
-          const clean = email.toLowerCase();
-          if (isJunkEmail(clean)) continue;
+          const clean = cleanEmail(email);
+          if (!clean || isJunkEmail(clean)) continue;
           if (allEmails.has(clean) && allEmails.get(clean)?.via !== "snippet") continue;
           const name = findNearbyName(text, email);
           allEmails.set(clean, { name, url: p.url, source: p.source, via: "page text" });
@@ -522,8 +722,8 @@ export async function POST(req: NextRequest) {
             // Also harvest snippet emails immediately.
             const snippetEmailsFallback = dedupe((r.snippet + " " + r.name).match(EMAIL_RE) ?? []);
             for (const email of snippetEmailsFallback) {
-              const clean = email.toLowerCase();
-              if (isJunkEmail(clean)) continue;
+              const clean = cleanEmail(email);
+              if (!clean || isJunkEmail(clean)) continue;
               if (allEmails.has(clean)) continue;
               allEmails.set(clean, { name: undefined, url: r.url, source: `Google snippet: "${q}"`, via: "snippet" });
             }
@@ -537,8 +737,8 @@ export async function POST(req: NextRequest) {
           const text = stripHtml(page.html);
           const emails = dedupe(text.match(EMAIL_RE) ?? []);
           for (const email of emails) {
-            const clean = email.toLowerCase();
-            if (isJunkEmail(clean)) continue;
+            const clean = cleanEmail(email);
+            if (!clean || isJunkEmail(clean)) continue;
             if (allEmails.has(clean)) continue;
             // Only keep emails on the company domain OR emails that look corporate.
             if (companyDomain && !clean.endsWith("@" + companyDomain)) {
@@ -634,100 +834,326 @@ export async function POST(req: NextRequest) {
 
     const evidence = evidenceLines.join("\n");
 
-    // ---------- LAYER 7: LLM organization ----------
-    const sys = `You are a sales-prospecting assistant. You will be given a packet of EVIDENCE scraped LIVE from the company's website, LinkedIn, and Google search results. Your job is to ORGANIZE this evidence into a clean contact list.
+    // ---------- LAYER 7: LLM organization (constrained) ----------
+    // The LLM CANNOT be trusted as the source of truth for contact data —
+    // even with explicit "do not fabricate" instructions, it happily invents
+    // LinkedIn URLs and pulls fake names from demo/placeholder page text.
+    // We therefore build the contact list DETERMINISTICALLY from the real
+    // evidence, and only call the LLM to write a one-sentence relevance note
+    // for each pre-built contact. The LLM never gets to invent fields.
+    //
+    // Build deterministic contact candidates:
+    //   Priority 1: emails found on the company domain with a real name nearby
+    //   Priority 2: emails found on the company domain without a name
+    //   Priority 3: real names found near target titles (no email)
+    //   Priority 4: LinkedIn URLs found in snippets (no email, no name match)
+    //   Priority 5: inferred email patterns (pattern-generated, low confidence)
+    //   Priority 6: emails found on third-party domains (lowest confidence)
+    //
+    // Each candidate carries its REAL source URL from the scrape — never
+    // fabricated.
 
-CRITICAL RULES — VIOLATING THESE IS A SHOWSTOPPER:
-1. You may ONLY use names, emails, phone numbers, and LinkedIn URLs that appear VERBATIM in the evidence packet below OR in the INFERRED_EMAIL_PATTERNS section.
-2. You may NEVER invent an email or phone number that doesn't appear in the evidence. The only exception is INFERRED_EMAIL_PATTERNS — those are pattern-generated from a real name + the company domain, and you may use them but MUST set "confidence" to 20 or lower and "sourceType" to "inferred".
-3. For real scraped emails/phones, set "sourceType" to "scraped" and confidence per this rubric:
-   - 80-100: Email domain matches the company website domain AND a name+title appeared nearby.
-   - 50-79:  Email domain matches the company website domain but no name nearby, OR name+title found but no email.
-   - 20-49:  Name found in a search snippet but no email/phone to attach.
-4. You may assign a "contactTitle" based on what the page said near the name (e.g. if the snippet says "Jane Doe, VP Marketing", the title is "VP Marketing"). If no title is mentioned near the name, set "contactTitle" to "Team Member".
-5. The "relevanceNote" should explain, in one sentence, why this contact would care about the product being sold (use the product context provided). If the contact is clearly generic (e.g. info@ mailbox), say so.
-6. Drop junk: ignore emails like info@, contact@, support@, noreply@, privacy@, legal@, press@ UNLESS the operator explicitly was looking for those. Prefer personal emails.
-7. Dedupe by EMAIL (keep highest-confidence entry).
-8. ALSO dedupe by PERSON NAME — if the same person appears with both a scraped email and an inferred email, KEEP ONLY THE HIGHEST-CONFIDENCE entry (usually the scraped one). Do not list the same person twice.
-9. Rank highest-confidence first.
-10. Return at most ${maxContacts} contacts.
+    type Candidate = {
+      contactName: string;
+      contactTitle: string;
+      email?: string;
+      phone?: string;
+      linkedin?: string;
+      confidence: number;
+      sourceType: "scraped" | "inferred";
+      sourceUrl: string;
+      relevanceHint: string;
+    };
 
-If the evidence packet is empty or contains zero real contact names/emails/phones AND zero inferred patterns, return an empty contacts array — do NOT fabricate fallback data.
+    const candidates: Candidate[] = [];
+    const usedEmails = new Set<string>();
+    const usedNames = new Set<string>();
+    const usedLinkedins = new Set<string>();
 
-Return STRICT JSON only — no prose, no markdown fences:
-{
-  "contacts": [
-    {
-      "contactName": "<full name OR 'Unknown (email)' if name not on page>",
-      "contactTitle": "<title from the page OR 'Team Member'>",
-      "email": "<exact email from evidence OR from inferred patterns, OR null>",
-      "phone": "<exact phone from evidence, OR null>",
-      "linkedin": "<exact LinkedIn URL from evidence, OR null>",
-      "relevanceNote": "<one sentence>",
-      "confidence": <number 0-100>,
-      "sourceType": "scraped" | "inferred",
-      "sourceUrl": "<URL where this contact was actually found>"
-    }
-  ]
-}
+    // Helper: normalize a name for dedupe (lowercase, strip punctuation).
+    const normName = (s: string) => s.toLowerCase().replace(/[^a-z]/g, "");
 
-JSON only.`;
-
-    const user = `Target company: ${body.companyName}
-${companyDomain ? `Company domain: ${companyDomain}` : "Company domain: (unknown — no website provided)"}
-${linkedinUrl ? `LinkedIn URL provided: ${linkedinUrl}` : ""}
-${body.productContext ? `What we sell: ${body.productContext}` : "What we sell: (not specified — pick general B2B buyers)"}
-Titles of interest: ${targetTitles.join(", ")}
-
-================ EVIDENCE PACKET (scraped live) ================
-${evidence || "(no evidence was scraped — the company website and web search returned no usable contact data)"}
-================================================================
-
-Organize the evidence into at most ${maxContacts} contacts as JSON.`;
-
-    const completion = await zai.chat.completions.create({
-      model: getDefaultModel(),
-      messages: [
-        { role: "system", content: sys },
-        { role: "user", content: user },
-      ],
-      temperature: 0.2,
-      max_tokens: 2400,
+    // Priority 1+2: real emails. Sort by:
+    //   - email on company domain first
+    //   - has nearby name first
+    //   - via mailto link first (more intentional than plain text)
+    const realEmailEntries = Array.from(allEmails.entries()).sort((a, b) => {
+      const aDomain = companyDomain && a[0].endsWith("@" + companyDomain) ? 1 : 0;
+      const bDomain = companyDomain && b[0].endsWith("@" + companyDomain) ? 1 : 0;
+      if (aDomain !== bDomain) return bDomain - aDomain;
+      const aName = a[1].name ? 1 : 0;
+      const bName = b[1].name ? 1 : 0;
+      if (aName !== bName) return bName - aName;
+      const aMailto = a[1].via === "mailto link" ? 1 : 0;
+      const bMailto = b[1].via === "mailto link" ? 1 : 0;
+      return bMailto - aMailto;
     });
 
-    const extracted = extractChatContent(completion);
-    const raw = extracted.content ?? "";
-    const parsed = extractJson(raw);
+    for (const [email, meta] of realEmailEntries) {
+      if (usedEmails.has(email)) continue;
+      // Find an attached LinkedIn URL if the same name appears in allLinkedin.
+      // Skip placeholder/demo names like "Jon Doe", "Warner Brothers" — these
+      // are not real people, even if they appear near an email on a demo site.
+      let name = meta.name;
+      if (name && isPlaceholderName(name.toLowerCase(), meta.url)) {
+        name = undefined;
+      }
+      // Apollo-style linking: if the operator pasted a /in/<slug> URL and we
+      // identified the person's name (apolloLinkedinName), check if the
+      // email's local part matches that name. e.g. operator pasted
+      // /in/patrickcollison, we identified "Patrick Collison", and we scraped
+      // patrick@stripe.com — these should be linked as one contact.
+      if (!name && apolloLinkedinName) {
+        const localPart = email.split("@")[0].toLowerCase();
+        const nameNorm = normName(apolloLinkedinName);
+        // Match if local part contains the first name, last name, or both.
+        const [firstName, ...rest] = apolloLinkedinName.toLowerCase().split(/\s+/);
+        const lastName = rest[rest.length - 1] ?? "";
+        if (localPart.includes(firstName) || (lastName && localPart.includes(lastName)) || localPart.includes(nameNorm)) {
+          name = apolloLinkedinName;
+        }
+      }
+      let linkedin: string | undefined;
+      // If we have a name and the operator provided a LinkedIn URL whose slug
+      // matches the name, attach that LinkedIn URL.
+      if (name && linkedinUrl && /\/in\//i.test(linkedinUrl)) {
+        const slug = (linkedinUrl.split("/in/")[1]?.split(/[/?#]/)[0] ?? "").toLowerCase();
+        const nameNorm = normName(name);
+        if (slug.includes(nameNorm) || slug.includes(normName(name).slice(0, 6))) {
+          linkedin = linkedinUrl;
+          usedLinkedins.add(linkedinUrl);
+        }
+      }
+      if (name && !linkedin) {
+        // Look through allNamesWithCtx for this name to find the source URL,
+        // then check if any LinkedIn URL was found on the same page.
+        const nameCtx = allNamesWithCtx.find((n) => n.name === name);
+        if (nameCtx) {
+          for (const [li] of allLinkedin) {
+            if (usedLinkedins.has(li)) continue;
+            // Heuristic: same source URL OR the LinkedIn slug contains the name.
+            const liSlug = li.split("/").pop() ?? "";
+            if (liSlug.toLowerCase().includes(normName(name).slice(0, 6)) || li === nameCtx.url) {
+              linkedin = li;
+              usedLinkedins.add(li);
+              break;
+            }
+          }
+        }
+      }
+      const onCompanyDomain = companyDomain && email.endsWith("@" + companyDomain);
+      // Confidence rubric:
+      //   95: name + email on company domain + LinkedIn URL (best case)
+      //   90: name + email on company domain
+      //   70: name + email (not on company domain)
+      //   50: email on company domain but NO name (generic mailbox like
+      //       complaints@, support@ — real but not a specific person)
+      //   30: email without name and not on company domain
+      // Named contacts (Priority 3, confidence 65-85) should rank ABOVE
+      // generic mailboxes — a CEO with no public email is more valuable
+      // than a support@ mailbox.
+      const confidence = name && onCompanyDomain && linkedin ? 95
+        : name && onCompanyDomain ? 90
+        : name ? 70
+        : onCompanyDomain ? 50
+        : 30;
+      candidates.push({
+        contactName: name ?? "Unknown (email)",
+        contactTitle: "Team Member", // LLM will refine
+        email,
+        phone: undefined,
+        linkedin,
+        confidence,
+        sourceType: "scraped",
+        sourceUrl: meta.url,
+        relevanceHint: `Email found via ${meta.via} on ${meta.url}.`,
+      });
+      usedEmails.add(email);
+      if (name) usedNames.add(normName(name));
+    }
 
-    const isValid =
-      parsed?.contacts &&
-      Array.isArray(parsed.contacts) &&
-      parsed.contacts.every(
-        (c: any) =>
-          c &&
-          typeof c.contactName === "string" &&
-          typeof c.contactTitle === "string",
-      );
+    // Priority 3: real names near target titles that don't yet have an email.
+    // This includes names extracted from search results about the operator-
+    // provided LinkedIn URL (Apollo-style enrichment).
+    for (const n of allNamesWithCtx) {
+      if (usedNames.has(normName(n.name))) continue;
+      // Skip obvious demo/placeholder names.
+      const lower = n.name.toLowerCase();
+      if (isPlaceholderName(lower, n.url)) continue;
+      // Try to find an attached LinkedIn URL.
+      let linkedin: string | undefined;
+      for (const [li] of allLinkedin) {
+        if (usedLinkedins.has(li)) continue;
+        const liSlug = (li.split("/").pop() ?? "").toLowerCase();
+        if (liSlug.includes(normName(n.name).slice(0, 6)) || li === n.url) {
+          linkedin = li;
+          usedLinkedins.add(li);
+          break;
+        }
+      }
+      // If no LinkedIn URL was found via name matching but the name came from
+      // the operator-provided LinkedIn URL search, attach that URL directly.
+      if (!linkedin && n.url === linkedinUrl) {
+        linkedin = linkedinUrl;
+        usedLinkedins.add(linkedinUrl);
+      }
+      // Confidence: highest when name + LinkedIn both present and the name
+      // came from an Apollo-style LinkedIn URL lookup. Medium when name +
+      // LinkedIn from general search. Boost when the snippet mentions a
+      // senior title (CEO/founder/CTO/etc.) — that means this is likely a
+      // decision-maker, not a random team member.
+      const isApolloHit = n.url === linkedinUrl && linkedin === linkedinUrl;
+      const snippetLower = n.snippet.toLowerCase();
+      const mentionsSeniorTitle = /\b(ceo|cto|cfo|coo|cmo|founder|co-founder|cofounder|president|managing director|general partner)\b/.test(snippetLower);
+      const confidence = isApolloHit ? 85
+        : mentionsSeniorTitle && linkedin ? 75
+        : mentionsSeniorTitle ? 65
+        : linkedin ? 55
+        : 35;
+      candidates.push({
+        contactName: n.name,
+        contactTitle: "Team Member", // LLM will refine from snippet
+        email: undefined,
+        phone: undefined,
+        linkedin,
+        confidence,
+        sourceType: "scraped",
+        sourceUrl: n.url,
+        relevanceHint: `Name found near title keyword in: "${n.snippet.slice(0, 120)}"`,
+      });
+      usedNames.add(normName(n.name));
+      if (linkedin) usedLinkedins.add(linkedin);
+    }
 
-    const aiContacts: any[] = isValid ? parsed.contacts : [];
+    // Priority 4: standalone LinkedIn URLs not yet attached to anyone.
+    for (const [li, meta] of allLinkedin) {
+      if (usedLinkedins.has(li)) continue;
+      candidates.push({
+        contactName: "Unknown (LinkedIn)",
+        contactTitle: "Team Member",
+        email: undefined,
+        phone: undefined,
+        linkedin: li,
+        confidence: 30,
+        sourceType: "scraped",
+        sourceUrl: meta.url,
+        relevanceHint: `LinkedIn profile URL found on ${meta.url}.`,
+      });
+      usedLinkedins.add(li);
+    }
 
-    const contacts = aiContacts.slice(0, maxContacts).map((c: any, idx: number) => {
-      const email = c.email && typeof c.email === "string" ? c.email : undefined;
-      const phone = c.phone && typeof c.phone === "string" ? c.phone : undefined;
-      const linkedin = c.linkedin && typeof c.linkedin === "string" ? c.linkedin : undefined;
+    // Priority 5: inferred email patterns. These are pattern-generated from
+    // a real name + the company domain — they may be wrong. Mark as inferred
+    // with low confidence.
+    for (const inf of inferredEmails) {
+      if (usedEmails.has(inf.email)) continue;
+      // Skip if we already have a real contact for this name.
+      if (usedNames.has(normName(inf.name))) continue;
+      // Skip placeholder names.
+      if (isPlaceholderName(inf.name.toLowerCase(), inf.sourceUrl)) continue;
+      candidates.push({
+        contactName: inf.name,
+        contactTitle: "Team Member",
+        email: inf.email,
+        phone: undefined,
+        linkedin: undefined,
+        confidence: 15,
+        sourceType: "inferred",
+        sourceUrl: inf.sourceUrl,
+        relevanceHint: `Email pattern inferred from name "${inf.name}" + company domain "${companyDomain}". Verify before sending.`,
+      });
+      usedEmails.add(inf.email);
+      usedNames.add(normName(inf.name));
+    }
+
+    // Rank and cap. Dedupe by LinkedIn URL too — same person shouldn't
+    // appear twice just because their name showed up in multiple snippets.
+    const seenLinkedinInRanked = new Set<string>();
+    const ranked = candidates
+      .sort((a, b) => b.confidence - a.confidence)
+      .filter((c) => {
+        if (c.linkedin) {
+          if (seenLinkedinInRanked.has(c.linkedin)) return false;
+          seenLinkedinInRanked.add(c.linkedin);
+        }
+        return true;
+      })
+      .slice(0, maxContacts);
+
+    // ---------- LLM call: ONLY for relevanceNote + contactTitle ----------
+    // We pass the pre-built contact list and ask the LLM to fill in JUST
+    // these two text fields. It cannot add/remove/reorder contacts, and it
+    // cannot change email/phone/linkedin/name/sourceUrl/confidence.
+    let llmNotes: Record<string, { title: string; note: string }> = {};
+    if (ranked.length > 0) {
+      const llmInput = ranked.map((c, i) => ({
+        index: i,
+        contactName: c.contactName,
+        email: c.email ?? null,
+        linkedin: c.linkedin ?? null,
+        sourceUrl: c.sourceUrl,
+        relevanceHint: c.relevanceHint,
+      }));
+      const llmSys = `You are a sales-prospecting copywriter. You will receive a JSON array of pre-built contacts. For EACH contact, write:
+  - "title": the person's job title IF it can be inferred from the relevanceHint or contactName (e.g. "CEO", "VP Marketing", "Founder"). If unknown, return "Team Member".
+  - "note": ONE short sentence (max 20 words) explaining why this contact would care about the product being sold.
+
+CRITICAL RULES:
+1. Return ONLY a JSON object mapping the contact's index (as a string) to {"title": "...", "note": "..."}.
+2. Do NOT invent emails, phones, names, or LinkedIn URLs. You are only writing title + note text.
+3. Do NOT add or remove contacts. Process every index in the input.
+4. JSON only — no prose, no markdown fences.
+
+Example output:
+{"0":{"title":"CEO","note":"As CEO, would care about strategic ROI."},"1":{"title":"Team Member","note":"Generic contact — handle via support."}}`;
+
+      const llmUser = `Product being sold: ${body.productContext || "(not specified — write a generic B2B relevance note)"}
+Target company: ${body.companyName}
+
+Contacts (write title + note for EACH):
+${JSON.stringify(llmInput, null, 2)}`;
+
+      try {
+        const completion = await zai.chat.completions.create({
+          model: getDefaultModel(),
+          messages: [
+            { role: "system", content: llmSys },
+            { role: "user", content: llmUser },
+          ],
+          temperature: 0.3,
+          max_tokens: 1200,
+        });
+        const extracted = extractChatContent(completion);
+        const raw = extracted.content ?? "";
+        const parsed = extractJson(raw);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          llmNotes = parsed as Record<string, { title: string; note: string }>;
+        }
+      } catch {
+        // If LLM fails, fall back to defaults — we still return real contacts.
+      }
+    }
+
+    // ---------- Final contact assembly (DETERMINISTIC) ----------
+    const contacts = ranked.map((c, idx) => {
+      const note = llmNotes[String(idx)] ?? {};
+      const title = typeof note.title === "string" && note.title.trim()
+        ? note.title.trim().slice(0, 80)
+        : c.contactTitle;
+      const relevanceNote = typeof note.note === "string" && note.note.trim()
+        ? note.note.trim().slice(0, 200)
+        : c.relevanceHint;
       return {
         id: `c-${idx + 1}`,
-        contactName: String(c.contactName),
-        contactTitle: String(c.contactTitle),
-        email: email ?? "(not found)",
-        phone,
-        linkedin,
-        relevanceNote: c.relevanceNote ? String(c.relevanceNote) : undefined,
-        confidence: typeof c.confidence === "number"
-          ? Math.min(Math.max(c.confidence, 0), 100)
-          : 30,
-        sourceType: c.sourceType === "inferred" ? "inferred" : "scraped",
-        sourceUrl: c.sourceUrl ? String(c.sourceUrl) : undefined,
+        contactName: c.contactName,
+        contactTitle: title,
+        email: c.email ?? "(not found)",
+        phone: c.phone,
+        linkedin: c.linkedin,
+        relevanceNote,
+        confidence: c.confidence,
+        sourceType: c.sourceType,
+        sourceUrl: c.sourceUrl,
         clientConfirmed: false,
       };
     });
@@ -752,7 +1178,6 @@ Organize the evidence into at most ${maxContacts} contacts as JSON.`;
       source: "live_scrape",
       sources,
       evidenceSummary: summary.join(" "),
-      ...(extracted.error ? { warning: extracted.error } : {}),
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
