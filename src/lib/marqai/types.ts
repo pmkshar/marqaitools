@@ -805,6 +805,127 @@ export interface DiscoveryQuestionSet {
 }
 
 // ============================================================
+// AI SALES WORKFLOW — End-to-end 4-stage outbound pipeline
+// ------------------------------------------------------------
+// Stage 1: scrape  → AI builds contact database from company
+//                       website + LinkedIn URL
+// Stage 2: intro   → AI drafts intro email; client approves;
+//                       email "sent"
+// Stage 3: followup→ AI drafts follow-up email + proposes
+//                       meeting slots (online/offline); client
+//                       picks a slot; meeting scheduled
+// Stage 4: call    → AI simulates an automated confirmation
+//                       call (script + prospect response);
+//                       client updated with confirmation
+// ============================================================
+
+export type SalesWorkflowStage =
+  | "scrape"
+  | "intro_email"
+  | "followup_schedule"
+  | "call_confirm"
+  | "done";
+
+export type SalesWorkflowStageStatus =
+  | "pending"
+  | "in_progress"
+  | "awaiting_client"
+  | "completed"
+  | "failed";
+
+export interface ScrapedContact {
+  /** Stable id within the lead. */
+  id: string;
+  contactName: string;
+  contactTitle: string;
+  email: string;
+  phone?: string;
+  linkedin?: string;
+  /** Why this contact is relevant to the product being sold. */
+  relevanceNote?: string;
+  /** Confidence 0-100 — LLM's stated confidence the contact info is accurate. */
+  confidence: number;
+  /** Did the client (operator using Marqai) confirm this contact? */
+  clientConfirmed: boolean;
+}
+
+export interface IntroEmailPayload {
+  subject: string;
+  body: string;
+  sentAt?: string;
+}
+
+export interface MeetingSlot {
+  id: string;
+  label: string; // e.g. "Tue 22 Jul · 11:00 AM IST"
+  mode: "online" | "offline";
+  meetingLink?: string;
+  location?: string;
+}
+
+export interface FollowupSchedulePayload {
+  followupSubject: string;
+  followupBody: string;
+  proposedSlots: MeetingSlot[];
+  /** Slot the client (operator) picked — set when stage advances. */
+  selectedSlotId?: string;
+  scheduledAt?: string;
+}
+
+export interface CallConfirmPayload {
+  callScript: string;
+  /** What the AI-simulated prospect said in response. */
+  prospectResponse: string;
+  /** AI classification of the prospect's reply. */
+  outcome: "confirmed" | "reschedule" | "declined" | "voicemail";
+  /** Final confirmation message the AI sends to the client (operator). */
+  clientUpdateMessage: string;
+  callStartedAt?: string;
+  callEndedAt?: string;
+}
+
+export interface SalesWorkflowLead {
+  id: string;
+  /** Display ID for UI — e.g. WF-1001. */
+  displayId: string;
+  /** Link to the SalesAgent that owns this workflow run. */
+  agentId?: string;
+  agentName?: string;
+
+  // ----- Inputs (stage 1 inputs) -----
+  companyName: string;
+  website?: string;
+  linkedinUrl?: string;
+  productContext: string;
+  tone: string;
+
+  // ----- Stage state -----
+  stage: SalesWorkflowStage;
+  scrapeStatus: SalesWorkflowStageStatus;
+  introEmailStatus: SalesWorkflowStageStatus;
+  followupStatus: SalesWorkflowStageStatus;
+  callStatus: SalesWorkflowStageStatus;
+
+  // ----- Stage payloads -----
+  scrapedContacts: ScrapedContact[];
+  /** Contact the client picked to advance through stages 2-4. */
+  selectedContactId?: string;
+  introEmail?: IntroEmailPayload;
+  followup?: FollowupSchedulePayload;
+  call?: CallConfirmPayload;
+
+  // ----- Audit -----
+  stageHistory: {
+    stage: SalesWorkflowStage;
+    status: SalesWorkflowStageStatus;
+    timestamp: string;
+    note?: string;
+  }[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ============================================================
 // BUG TRACKER — Bugzilla-style issue tracker
 // ------------------------------------------------------------
 // Used by both the AI Testing and Non-AI Testing modules to

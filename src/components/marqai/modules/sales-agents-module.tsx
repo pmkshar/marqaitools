@@ -29,6 +29,7 @@ import {
   Bot, Loader2, Trash2, Wand2, Plus, Send, MessageSquare,
   Trophy, Target, Zap, Shield, Brain, Sparkles, User, Copy,
   Download, AlertTriangle, TrendingUp, ListChecks, MessageCircle,
+  Workflow,
 } from "lucide-react";
 import type {
   SalesAgent, SalesAgentType, SalesMethodology,
@@ -39,6 +40,7 @@ import type {
 } from "@/lib/marqai/types";
 import { uid, formatDateTime } from "@/lib/marqai/utils";
 import { KpiCard } from "../kpi-card";
+import { WorkflowTab } from "./sales-workflow-tab";
 
 // ============================================================
 // Constants
@@ -90,7 +92,7 @@ const SCORE_COLORS: Record<string, string> = {
 // ============================================================
 
 export function SalesAgentsModule() {
-  const [tab, setTab] = useState<string>("agents");
+  const [tab, setTab] = useState<string>("workflow");
 
   const salesAgents = useMarqai((s) => s.salesAgents);
   const salesConversations = useMarqai((s) => s.salesConversations);
@@ -159,7 +161,11 @@ export function SalesAgentsModule() {
 
       {/* Tabs */}
       <Tabs value={tab} onValueChange={setTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 h-auto">
+        <TabsList className="grid w-full grid-cols-2 md:grid-cols-6 h-auto">
+          <TabsTrigger value="workflow" className="flex items-center gap-1.5 py-2 relative">
+            <Workflow className="h-3.5 w-3.5" /> Workflow
+            <span className="ml-1 inline-flex items-center rounded-full bg-violet-600 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white">New</span>
+          </TabsTrigger>
           <TabsTrigger value="agents" className="flex items-center gap-1.5 py-2">
             <Bot className="h-3.5 w-3.5" /> Agents
           </TabsTrigger>
@@ -177,6 +183,9 @@ export function SalesAgentsModule() {
           </TabsTrigger>
         </TabsList>
 
+        <TabsContent value="workflow">
+          <WorkflowTab />
+        </TabsContent>
         <TabsContent value="agents">
           <AgentsTab />
         </TabsContent>

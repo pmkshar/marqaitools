@@ -42,6 +42,13 @@ import type {
   DealCoachingSession,
   ObjectionResponse,
   DiscoveryQuestionSet,
+  SalesWorkflowLead,
+  SalesWorkflowStage,
+  SalesWorkflowStageStatus,
+  ScrapedContact,
+  IntroEmailPayload,
+  FollowupSchedulePayload,
+  CallConfirmPayload,
   Bug,
   BugComment,
   BugStatus,
@@ -241,6 +248,31 @@ interface MarqaiState {
   discoveryQuestionSets: DiscoveryQuestionSet[];
   addDiscoveryQuestionSet: (d: DiscoveryQuestionSet) => void;
   deleteDiscoveryQuestionSet: (id: string) => void;
+
+  // ---------- AI SALES WORKFLOW (4-stage outbound pipeline) ----------
+  salesWorkflowLeads: SalesWorkflowLead[];
+  addSalesWorkflowLead: (lead: SalesWorkflowLead) => void;
+  updateSalesWorkflowLead: (id: string, patch: Partial<SalesWorkflowLead>) => void;
+  deleteSalesWorkflowLead: (id: string) => void;
+  /** Append a stage-history entry to a workflow lead. */
+  appendWorkflowStageHistory: (
+    id: string,
+    entry: { stage: SalesWorkflowStage; status: SalesWorkflowStageStatus; note?: string },
+  ) => void;
+  /** Replace scraped contacts + advance scrape stage to awaiting_client. */
+  setWorkflowScrapedContacts: (id: string, contacts: ScrapedContact[]) => void;
+  /** Mark a scraped contact as confirmed by the client. */
+  toggleWorkflowContactConfirmed: (id: string, contactId: string) => void;
+  /** Select one confirmed contact to drive stages 2-4. */
+  selectWorkflowContact: (id: string, contactId: string) => void;
+  /** Set the intro email payload + advance stage. */
+  setWorkflowIntroEmail: (id: string, payload: IntroEmailPayload) => void;
+  /** Set the follow-up + slots payload + advance stage. */
+  setWorkflowFollowup: (id: string, payload: FollowupSchedulePayload) => void;
+  /** Pick a meeting slot + advance to call_confirm. */
+  selectWorkflowMeetingSlot: (id: string, slotId: string) => void;
+  /** Set the call confirm payload + advance to done. */
+  setWorkflowCall: (id: string, payload: CallConfirmPayload) => void;
 
   // ---------- BUG TRACKER ----------
   bugs: Bug[];
@@ -675,6 +707,203 @@ export const useMarqai = create<MarqaiState>()(
           discoveryQuestionSets: s.discoveryQuestionSets.filter((x) => x.id !== id),
         })),
 
+      // ---------- AI SALES WORKFLOW (4-stage outbound pipeline) ----------
+      salesWorkflowLeads: [],
+      addSalesWorkflowLead: (lead) =>
+        set((s) => ({ salesWorkflowLeads: [lead, ...s.salesWorkflowLeads] })),
+      updateSalesWorkflowLead: (id, patch) =>
+        set((s) => ({
+          salesWorkflowLeads: s.salesWorkflowLeads.map((l) =>
+            l.id === id
+              ? { ...l, ...patch, updatedAt: new Date().toISOString() }
+              : l,
+          ),
+        })),
+      deleteSalesWorkflowLead: (id) =>
+        set((s) => ({
+          salesWorkflowLeads: s.salesWorkflowLeads.filter((l) => l.id !== id),
+        })),
+      appendWorkflowStageHistory: (id, entry) =>
+        set((s) => ({
+          salesWorkflowLeads: s.salesWorkflowLeads.map((l) =>
+            l.id === id
+              ? {
+                  ...l,
+                  stageHistory: [
+                    ...l.stageHistory,
+                    { ...entry, timestamp: new Date().toISOString() },
+                  ],
+                  updatedAt: new Date().toISOString(),
+                }
+              : l,
+          ),
+        })),
+      setWorkflowScrapedContacts: (id, contacts) =>
+        set((s) => ({
+          salesWorkflowLeads: s.salesWorkflowLeads.map((l) =>
+            l.id === id
+              ? {
+                  ...l,
+                  scrapedContacts: contacts,
+                  scrapeStatus: "awaiting_client",
+                  stageHistory: [
+                    ...l.stageHistory,
+                    {
+                      stage: "scrape",
+                      status: "awaiting_client",
+                      timestamp: new Date().toISOString(),
+                      note: `Scraped ${contacts.length} contacts — awaiting client confirmation.`,
+                    },
+                  ],
+                  updatedAt: new Date().toISOString(),
+                }
+              : l,
+          ),
+        })),
+      toggleWorkflowContactConfirmed: (id, contactId) =>
+        set((s) => ({
+          salesWorkflowLeads: s.salesWorkflowLeads.map((l) =>
+            l.id === id
+              ? {
+                  ...l,
+                  scrapedContacts: l.scrapedContacts.map((c) =>
+                    c.id === contactId
+                      ? { ...c, clientConfirmed: !c.clientConfirmed }
+                      : c,
+                  ),
+                  updatedAt: new Date().toISOString(),
+                }
+              : l,
+          ),
+        })),
+      selectWorkflowContact: (id, contactId) =>
+        set((s) => ({
+          salesWorkflowLeads: s.salesWorkflowLeads.map((l) =>
+            l.id === id
+              ? {
+                  ...l,
+                  selectedContactId: contactId,
+                  scrapeStatus: "completed",
+                  stage: "intro_email",
+                  introEmailStatus: "pending",
+                  stageHistory: [
+                    ...l.stageHistory,
+                    {
+                      stage: "scrape",
+                      status: "completed",
+                      timestamp: new Date().toISOString(),
+                      note: `Client confirmed contact — advancing to intro email stage.`,
+                    },
+                  ],
+                  updatedAt: new Date().toISOString(),
+                }
+              : l,
+          ),
+        })),
+      setWorkflowIntroEmail: (id, payload) =>
+        set((s) => ({
+          salesWorkflowLeads: s.salesWorkflowLeads.map((l) =>
+            l.id === id
+              ? {
+                  ...l,
+                  introEmail: { ...payload, sentAt: new Date().toISOString() },
+                  introEmailStatus: "completed",
+                  stage: "followup_schedule",
+                  followupStatus: "pending",
+                  stageHistory: [
+                    ...l.stageHistory,
+                    {
+                      stage: "intro_email",
+                      status: "completed",
+                      timestamp: new Date().toISOString(),
+                      note: `Intro email sent: "${payload.subject}".`,
+                    },
+                  ],
+                  updatedAt: new Date().toISOString(),
+                }
+              : l,
+          ),
+        })),
+      setWorkflowFollowup: (id, payload) =>
+        set((s) => ({
+          salesWorkflowLeads: s.salesWorkflowLeads.map((l) =>
+            l.id === id
+              ? {
+                  ...l,
+                  followup: payload,
+                  followupStatus: "awaiting_client",
+                  stageHistory: [
+                    ...l.stageHistory,
+                    {
+                      stage: "followup_schedule",
+                      status: "awaiting_client",
+                      timestamp: new Date().toISOString(),
+                      note: `Follow-up drafted. ${payload.proposedSlots.length} meeting slots proposed — awaiting client pick.`,
+                    },
+                  ],
+                  updatedAt: new Date().toISOString(),
+                }
+              : l,
+          ),
+        })),
+      selectWorkflowMeetingSlot: (id, slotId) =>
+        set((s) => ({
+          salesWorkflowLeads: s.salesWorkflowLeads.map((l) =>
+            l.id === id
+              ? {
+                  ...l,
+                  followup: l.followup
+                    ? {
+                        ...l.followup,
+                        selectedSlotId: slotId,
+                        scheduledAt: new Date().toISOString(),
+                      }
+                    : l.followup,
+                  followupStatus: "completed",
+                  stage: "call_confirm",
+                  callStatus: "pending",
+                  stageHistory: [
+                    ...l.stageHistory,
+                    {
+                      stage: "followup_schedule",
+                      status: "completed",
+                      timestamp: new Date().toISOString(),
+                      note: `Meeting slot selected. Scheduling confirmation call.`,
+                    },
+                  ],
+                  updatedAt: new Date().toISOString(),
+                }
+              : l,
+          ),
+        })),
+      setWorkflowCall: (id, payload) =>
+        set((s) => ({
+          salesWorkflowLeads: s.salesWorkflowLeads.map((l) =>
+            l.id === id
+              ? {
+                  ...l,
+                  call: {
+                    ...payload,
+                    callStartedAt: l.call?.callStartedAt,
+                    callEndedAt: new Date().toISOString(),
+                  },
+                  callStatus: "completed",
+                  stage: "done",
+                  stageHistory: [
+                    ...l.stageHistory,
+                    {
+                      stage: "call_confirm",
+                      status: "completed",
+                      timestamp: new Date().toISOString(),
+                      note: `Confirmation call completed. Outcome: ${payload.outcome}.`,
+                    },
+                  ],
+                  updatedAt: new Date().toISOString(),
+                }
+              : l,
+          ),
+        })),
+
       // ---------- BUG TRACKER ----------
       bugs: seedBugs,
       addBug: (b) => set((s) => ({ bugs: [b, ...s.bugs] })),
@@ -851,6 +1080,7 @@ export const useMarqai = create<MarqaiState>()(
         dealCoachingSessions: s.dealCoachingSessions,
         objectionResponses: s.objectionResponses,
         discoveryQuestionSets: s.discoveryQuestionSets,
+        salesWorkflowLeads: s.salesWorkflowLeads,
         bugs: s.bugs,
         whatsappTemplates: s.whatsappTemplates,
         whatsappContacts: s.whatsappContacts,
