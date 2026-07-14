@@ -597,7 +597,16 @@ function ScrapeStageCard({ lead }: { lead: SalesWorkflowLead }) {
         },
       );
     } catch (e) {
-      toast.error("Scrape failed", { description: e instanceof Error ? e.message : String(e) });
+      const msg = e instanceof Error ? e.message : String(e);
+      // Detect Vercel function timeout (Hobby plan kills at 10s).
+      const isTimeout =
+        /fetch failed|networkerror|aborted|timeout|timed out/i.test(msg) ||
+        msg.toLowerCase().includes("failed to fetch");
+      toast.error("Scrape failed", {
+        description: isTimeout
+          ? "The scrape took too long and Vercel killed it. Retry now (it's faster after the latest update) — if it still fails, upgrade Vercel to Pro for 60s function timeout."
+          : msg,
+      });
     } finally {
       setLoading(false);
     }
