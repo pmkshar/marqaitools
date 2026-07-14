@@ -847,6 +847,8 @@ export interface ScrapedContact {
   confidence: number;
   /** URL where this contact was actually found during live scraping. */
   sourceUrl?: string;
+  /** "scraped" = found verbatim on a page; "inferred" = pattern-generated from a name + company domain. */
+  sourceType?: "scraped" | "inferred";
   /** Did the client (operator using Marqai) confirm this contact? */
   clientConfirmed: boolean;
 }

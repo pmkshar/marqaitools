@@ -409,11 +409,14 @@ function CreateWorkflowDialog({
               </div>
             </div>
             <div>
-              <Label>LinkedIn URL</Label>
+              <Label>LinkedIn URL (company or person)</Label>
               <div className="relative">
                 <Linkedin className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                <Input value={linkedinUrl} onChange={(e) => setLinkedinUrl(e.target.value)} placeholder="linkedin.com/company/acme" className="pl-8" />
+                <Input value={linkedinUrl} onChange={(e) => setLinkedinUrl(e.target.value)} placeholder="linkedin.com/company/acme OR linkedin.com/in/jane-doe" className="pl-8" />
               </div>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Paste a company page OR a person's profile — Apollo-style lookup will pull their name, title, and infer their email.
+              </p>
             </div>
           </div>
 
@@ -436,7 +439,7 @@ function CreateWorkflowDialog({
 
           <div className="rounded-md border border-emerald-200 bg-emerald-50 dark:bg-emerald-950/20 dark:border-emerald-800 p-3 text-xs text-emerald-800 dark:text-emerald-300">
             <CheckCircle2 className="h-3.5 w-3.5 inline mr-1.5" />
-            <strong>Stage 1 — Live web scraping:</strong> The AI agent will actually fetch the company's website (homepage + /contact, /about, /team, /leadership pages) and run web searches for the company's leadership team, then extract real email addresses, phone numbers, and LinkedIn profiles from the live HTML. Each contact will show the source URL so you can verify it. If a company hides its team page, you'll see "no contacts found" — never invented data.
+            <strong>Stage 1 — Multi-layer live web scraping (Apollo-style):</strong> The AI agent will (1) fetch the company website homepage + /contact, /about, /team, /leadership pages, (2) run 4 targeted web searches for the company's leadership team and contact info, (3) if zero emails are found, run Google fallback searches like <code className="font-mono">"@domain.com" company name</code> to find any email on the company domain that appears publicly, (4) page-read any LinkedIn URL you provide — either a /company/ page or a /in/person profile — and pull the person's name, title, and inferred email. Every contact shows a clickable source URL so you can verify it. Inferred emails (pattern-generated from a name + company domain) are clearly marked so you know to verify them before sending.
           </div>
         </div>
 
@@ -670,6 +673,15 @@ function ScrapeStageCard({ lead }: { lead: SalesWorkflowLead }) {
                       <span className="font-medium text-sm">{c.contactName}</span>
                       <Badge variant="outline" className="text-[10px]">{c.contactTitle}</Badge>
                       <ConfidenceBadge confidence={c.confidence} />
+                      {c.sourceType === "inferred" ? (
+                        <Badge variant="outline" className="text-[10px] text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30">
+                          Inferred email — verify before sending
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-[10px] text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30">
+                          Scraped from web
+                        </Badge>
+                      )}
                     </div>
                     <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-3 flex-wrap">
                       <span className="flex items-center gap-1"><Mail className="h-3 w-3" /> {c.email}</span>

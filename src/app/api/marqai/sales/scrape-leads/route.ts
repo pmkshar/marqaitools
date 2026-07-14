@@ -4,44 +4,51 @@
 // Body: {
 //   companyName: string,
 //   website?: string,           // e.g. "acme.com"
-//   linkedinUrl?: string,       // e.g. "https://linkedin.com/company/acme"
-//   productContext?: string,    // what we sell — used to pick relevant decision-makers
-//   targetTitles?: string[],    // e.g. ["VP Marketing", "Head of Growth"]
-//   maxContacts?: number        // default 5
+//   linkedinUrl?: string,       // company OR personal LinkedIn URL (Apollo-style)
+//   productContext?: string,    // what we sell
+//   targetTitles?: string[],
+//   maxContacts?: number
 // }
 //
 // Returns: {
 //   ok: true,
 //   contacts: ScrapedContact[],
 //   source: "live_scrape" | "fallback",
-//   sources: string[],          // URLs that were actually fetched
+//   sources: string[],
+//   evidenceSummary: string,
 //   warning?: string
 // }
 //
-// IMPLEMENTATION NOTES
-// --------------------
-// This route performs REAL web scraping using the Z.AI SDK's built-in
-// `web_search` and `page_reader` functions:
-//   1. If the operator provided a website URL, we page-read it directly
-//      and extract emails + phone numbers from the raw HTML with regex.
-//   2. We run targeted web searches ("<Company> CEO", "<Company> leadership",
-//      "<Company> contact email", etc.) and page-read the top results.
-//   3. We also try common sub-pages that usually carry contact info:
-//      /contact, /about, /team, /leadership, /about-us.
-//   4. We hand all the REAL scraped snippets (emails, phones, names found
-//      on the page) to the LLM and ask it ONLY to:
-//         - match emails/phones to the names that appeared alongside them,
-//         - assign a plausible title ONLY when the title was actually on
-//           the page (otherwise mark title as "Team Member"),
-//         - rate confidence based on whether the email domain matches
-//           the company website domain,
-//         - write a one-line relevance note for the product being sold.
-//      The LLM is explicitly forbidden from inventing names, emails, or
-//      phone numbers that did not appear in the scraped source text.
-//
-// This is the difference between "AI-predicted contacts" (the old broken
-// behavior) and "AI-organized contacts scraped from the live web" (the
-// new behavior).
+// HOW THIS ROUTE WORKS (multi-layer scraping)
+// -------------------------------------------
+// Layer 1: Z.AI page_reader on the company website (homepage + /contact,
+//          /about, /team, /leadership, /about-us, /people).
+// Layer 2: Native fetch() fallback for any page_reader failure (some
+//          Vercel regions return null from page_reader for sites that
+//          require browser rendering; native fetch at least gets the
+//          raw HTML which often contains email addresses in <a href="mailto:">
+//          tags or footer text).
+// Layer 3: Z.AI web_search for "<Company> CEO founder leadership team",
+//          "<Company> contact email phone", "<Company> site:linkedin.com",
+//          "<Company> press news announcement". Page-read each result.
+// Layer 4: Google-style fallback searches when layers 1-3 yield zero
+//          usable emails: '"@<domain>" <company>' (find any email on
+//          the company domain that appears anywhere on the public web),
+//          '<company> leadership email', '<company> contact us email'.
+// Layer 5: Apollo.ai-style LinkedIn lookup. If linkedinUrl is a
+//          /company/<name> URL, page-read it for the leadership list.
+//          If it's a /in/<person> URL, page-read the profile, extract
+//          the person's name + title, then infer an email pattern on
+//          the company domain (first.last@domain, etc.).
+// Layer 6: Email pattern inference. When we have a real name + real
+//          company domain but no email was found on any page, generate
+//          the 5 most common corporate email patterns and mark each as
+//          "inferred" with low confidence. The operator must verify
+//          before sending.
+// Layer 7: LLM organization. Hand all REAL scraped evidence (emails,
+//          phones, names, LinkedIn URLs, source URLs) to the LLM with
+//          hard rules: only use evidence that appears verbatim, never
+//          invent emails or phones, return empty array if no evidence.
 import { NextRequest, NextResponse } from "next/server";
 import { getZai, getDefaultModel } from "@/lib/zai";
 import { extractJson } from "@/lib/json-utils";
@@ -60,58 +67,47 @@ interface Body {
 }
 
 // ---------- Regex extractors ----------
-// Email regex — matches most public formats including + and . subaddresses.
 const EMAIL_RE = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
-// International phone regex — permissive, captures +, dashes, spaces, parens.
 const PHONE_RE = /(?:\+?\d{1,3}[\s.-]?)?\(?\d{1,4}\)?[\s.-]?\d{1,4}[\s.-]?\d{1,9}/g;
-// Person name regex — two or three capitalized words, used to find names
-// mentioned alongside emails/phones on the page. We keep it conservative
-// to avoid false positives.
 const NAME_RE = /\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,2})\b/g;
-// LinkedIn profile URLs.
-const LINKEDIN_PROFILE_RE = /https?:\/\/(?:[a-z]{2,3}\.)?linkedin\.com\/in\/[a-zA-Z0-9_-]+/gi;
+const LINKEDIN_PROFILE_RE = /https?:\/\/(?:[a-z]{2,3}\.)?linkedin\.com\/(?:in|company)\/[a-zA-Z0-9_-]+/gi;
+const MAILTO_RE = /mailto:([^"'\s?>]+)/gi;
 
-// Junk emails / phone fragments to discard.
 const EMAIL_BLOCKLIST = new Set([
-  "sentry@recommendationservice.com",
-  "wix@wix.com",
-  "no-reply@example.com",
-  "noreply@example.com",
-  "support@example.com",
-  "info@example.com",
-  "contact@example.com",
-  "hello@example.com",
-  "admin@example.com",
-  "team@example.com",
+  "sentry@recommendationservice.com", "wix@wix.com",
+  "no-reply@example.com", "noreply@example.com", "support@example.com",
+  "contact@example.com", "hello@example.com", "admin@example.com",
+  "team@example.com", "info@example.com", "privacy@example.com",
+  "legal@example.com", "press@example.com",
 ]);
 
-// Common image / script phone false-positives (long digit runs in URLs).
 function isJunkPhone(s: string): boolean {
   const digits = s.replace(/\D/g, "");
-  // Too short or too long to be a real phone.
   if (digits.length < 7 || digits.length > 15) return true;
-  // Repeated digits like 0000000 or 1111111.
   if (/^(\d)\1+$/.test(digits)) return true;
-  // Years embedded in slugs (e.g. "2021-09-15").
   if (/20[12]\d/.test(s) && digits.length <= 8) return true;
   return false;
 }
 
-function isJunkEmail(s: string): boolean {
+function isJunkEmail(s: string, companyDomain: string): boolean {
   const lower = s.toLowerCase();
   if (EMAIL_BLOCKLIST.has(lower)) return true;
   if (lower.endsWith("@sentry.io")) return true;
   if (lower.endsWith("@example.com")) return true;
   if (lower.endsWith("@wix.com")) return true;
-  if (lower.includes(".png") || lower.includes(".jpg") || lower.includes(".gif")) return true;
+  if (lower.endsWith("@wordpress.com")) return true;
+  if (lower.endsWith("@godaddy.com")) return true;
+  if (lower.includes(".png") || lower.includes(".jpg") || lower.includes(".gif") || lower.includes(".webp")) return true;
+  // Discard emails on totally unrelated domains IF we know the company
+  // domain (they're almost always tracking pixels or third-party).
+  // Exception: we keep them — they might be a real contact on a
+  // subsidiary domain. We just downgrade their confidence later.
+  void companyDomain;
   return false;
 }
 
-function dedupe<T>(arr: T[]): T[] {
-  return Array.from(new Set(arr));
-}
+function dedupe<T>(arr: T[]): T[] { return Array.from(new Set(arr)); }
 
-// Normalize a website input into a full URL the page_reader can fetch.
 function normalizeWebsite(input: string): string {
   let s = input.trim();
   if (!s) return "";
@@ -119,7 +115,6 @@ function normalizeWebsite(input: string): string {
   return s;
 }
 
-// Try to derive the company domain (e.g. "acme.com") from any website input.
 function deriveDomain(input: string): string {
   if (!input) return "";
   let s = input.trim().toLowerCase();
@@ -162,8 +157,50 @@ async function zaiPageRead(zai: any, url: string): Promise<{ title: string; html
   }
 }
 
-// Strip HTML tags but preserve whitespace around words so the name regex
-// still picks up "John Smith" rather than "JohnSmith".
+// Native fetch() fallback — bypasses Z.AI page_reader entirely.
+// Many sites work better with a plain HTTP fetch because page_reader
+// on Vercel sometimes returns null for sites that need cookies/JS.
+async function nativeFetchHtml(url: string): Promise<{ title: string; html: string; url: string } | null> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 12000);
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; MarqaiSalesAgent/1.0; +https://marqai.tools/bot)",
+        "Accept": "text/html,application/xhtml+xml",
+        "Accept-Language": "en-US,en;q=0.9",
+      },
+      signal: controller.signal,
+      redirect: "follow",
+    });
+    clearTimeout(timeout);
+    if (!res.ok) return null;
+    const ct = res.headers.get("content-type") ?? "";
+    if (!ct.includes("text/html") && !ct.includes("application/xhtml")) return null;
+    const html = await res.text();
+    if (!html || html.length < 200) return null;
+    const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+    return {
+      title: titleMatch ? titleMatch[1].trim() : "",
+      html,
+      url,
+    };
+  } catch {
+    return null;
+  }
+}
+
+// Get HTML using zai page_reader first, fall back to native fetch.
+async function getPageHtml(zai: any, url: string): Promise<{ title: string; html: string; url: string; via: "page_reader" | "native_fetch" } | null> {
+  const viaZai = await zaiPageRead(zai, url);
+  if (viaZai && viaZai.html && viaZai.html.length > 500) {
+    return { ...viaZai, via: "page_reader" };
+  }
+  const viaFetch = await nativeFetchHtml(url);
+  if (viaFetch) return { ...viaFetch, via: "native_fetch" };
+  return null;
+}
+
 function stripHtml(html: string): string {
   return html
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
@@ -173,24 +210,44 @@ function stripHtml(html: string): string {
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
+    .replace(/&#64;/g, "@")
     .replace(/\s+/g, " ")
     .trim();
 }
 
-// Find a name that appears within ±120 chars of a contact string.
 function findNearbyName(text: string, contactStr: string): string | undefined {
   const idx = text.indexOf(contactStr);
   if (idx < 0) return undefined;
-  const start = Math.max(0, idx - 120);
-  const end = Math.min(text.length, idx + contactStr.length + 120);
+  const start = Math.max(0, idx - 150);
+  const end = Math.min(text.length, idx + contactStr.length + 150);
   const window = text.slice(start, end);
   const names = window.match(NAME_RE) ?? [];
-  // Filter out common false positives.
   const filtered = names.filter((n) => {
     const lower = n.toLowerCase();
-    return !["contact us", "about us", "privacy policy", "terms of", "all rights", "follow us"].some((j) => lower.includes(j));
+    return !["contact us", "about us", "privacy policy", "terms of", "all rights", "follow us", "get started", "learn more", "sign up", "log in"].some((j) => lower.includes(j));
   });
   return filtered[0];
+}
+
+// Generate the 5 most common corporate email patterns from a name + domain.
+// Used as Layer 6 — only when no real email was found on any page.
+function inferEmailPatterns(fullName: string, domain: string): string[] {
+  if (!fullName || !domain) return [];
+  const parts = fullName.toLowerCase().split(/\s+/).filter(Boolean);
+  if (parts.length < 2) return [];
+  const [first, ...rest] = parts;
+  const last = rest[rest.length - 1];
+  const firstInitial = first[0];
+  const lastInitial = last[0];
+  return dedupe([
+    `${first}.${last}@${domain}`,
+    `${first}${last}@${domain}`,
+    `${first}@${domain}`,
+    `${firstInitial}${last}@${domain}`,
+    `${first}${lastInitial}@${domain}`,
+    `${firstInitial}.${last}@${domain}`,
+    `${last}@${domain}`,
+  ]);
 }
 
 // ---------- Main handler ----------
@@ -208,30 +265,47 @@ export async function POST(req: NextRequest) {
     const maxContacts = Math.min(Math.max(body.maxContacts ?? 5, 1), 8);
     const targetTitles = body.targetTitles?.length
       ? body.targetTitles
-      : ["CEO", "CTO", "VP Marketing", "Head of Growth", "Head of Sales", "Founder", "COO"];
+      : ["CEO", "CTO", "VP Marketing", "Head of Growth", "Head of Sales", "Founder", "COO", "CMO", "VP Sales"];
     const companyDomain = deriveDomain(body.website ?? "");
     const websiteUrl = normalizeWebsite(body.website ?? "");
+    const linkedinUrl = body.linkedinUrl?.trim() || "";
 
     const zai = await getZai();
 
-    // ---------- STEP 1: page-read the company website directly ----------
+    // ---------- Build the page-read queue ----------
     const pagesToRead: { url: string; source: string }[] = [];
+
+    // Layer 1: company website + common subpages.
     if (websiteUrl) {
       pagesToRead.push({ url: websiteUrl, source: "company website (homepage)" });
-      // Try common contact subpages.
       const base = websiteUrl.replace(/\/$/, "");
-      for (const path of ["/contact", "/contact-us", "/about", "/about-us", "/team", "/leadership", "/people"]) {
+      for (const path of ["/contact", "/contact-us", "/about", "/about-us", "/team", "/leadership", "/people", "/staff", "/management"]) {
         pagesToRead.push({ url: base + path, source: `company website (${path})` });
       }
     }
 
-    // ---------- STEP 2: web search for company leadership + contact info ----------
+    // Layer 5 (Apollo-style): if a LinkedIn URL was provided, page-read it
+    // directly — works for both /company/<name> and /in/<person> URLs.
+    if (linkedinUrl) {
+      pagesToRead.push({ url: linkedinUrl, source: "LinkedIn (operator-provided URL)" });
+    }
+
+    // Layer 3: web search for company leadership + contact info.
     const searchQueries = [
       `${body.companyName} CEO founder leadership team`,
       `${body.companyName} contact email phone`,
-      ...(body.linkedinUrl ? [`${body.companyName} site:linkedin.com/in`] : []),
+      `${body.companyName} email address`,
       `${body.companyName} press news announcement`,
     ];
+    if (linkedinUrl && /\/in\//i.test(linkedinUrl)) {
+      // If operator pasted a personal LinkedIn URL, also search for that person.
+      const profileSlug = linkedinUrl.split("/in/")[1]?.split(/[/?#]/)[0];
+      if (profileSlug) {
+        searchQueries.unshift(`${profileSlug.replace(/[-_]/g, " ")} ${body.companyName} email`);
+      }
+    } else {
+      searchQueries.push(`${body.companyName} site:linkedin.com/in`);
+    }
     const searchResults: { url: string; name: string; snippet: string; host_name: string; query: string }[] = [];
     for (const q of searchQueries) {
       const results = await zaiWebSearch(zai, q, 4);
@@ -239,8 +313,6 @@ export async function POST(req: NextRequest) {
         searchResults.push({ ...r, query: q });
       }
     }
-
-    // Add top search result URLs to the page-read list (deduped).
     const seenUrls = new Set<string>();
     for (const r of searchResults) {
       if (!seenUrls.has(r.url)) {
@@ -249,47 +321,58 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Cap the number of pages we read to avoid blowing through tokens / time.
-    const pages = pagesToRead.slice(0, 10);
+    const pages = pagesToRead.slice(0, 12);
 
-    // ---------- STEP 3: page-read each URL, extract contacts ----------
+    // ---------- Scrape each page ----------
     const sources: string[] = [];
-    const allEmails = new Map<string, { name?: string; url: string; source: string }>();
+    const allEmails = new Map<string, { name?: string; url: string; source: string; via: string }>();
     const allPhones = new Map<string, { url: string; source: string }>();
     const allLinkedin = new Map<string, { url: string; source: string }>();
     const allNamesWithCtx: { name: string; url: string; snippet: string; source: string }[] = [];
     const rawSnippets: { url: string; title: string; text: string; source: string }[] = [];
 
     for (const p of pages) {
-      const page = await zaiPageRead(zai, p.url);
+      const page = await getPageHtml(zai, p.url);
       if (!page) continue;
       sources.push(p.url);
 
       const text = stripHtml(page.html);
       rawSnippets.push({ url: p.url, title: page.title, text: text.slice(0, 8000), source: p.source });
 
-      // Extract emails.
-      const emailsOnPage = dedupe(text.match(EMAIL_RE) ?? []);
-      for (const email of emailsOnPage) {
-        if (isJunkEmail(email)) continue;
+      // mailto: links (highest signal — these are intentional contact emails)
+      const mailtos = dedupe(Array.from(page.html.matchAll(MAILTO_RE)).map((m) => m[1]).filter(Boolean));
+      for (const email of mailtos) {
+        const clean = email.toLowerCase().trim();
+        if (isJunkEmail(clean, companyDomain)) continue;
         const name = findNearbyName(text, email);
-        allEmails.set(email.toLowerCase(), { name, url: p.url, source: p.source });
+        allEmails.set(clean, { name, url: p.url, source: p.source, via: "mailto link" });
       }
 
-      // Extract phones.
+      // Plain-text emails
+      const emailsOnPage = dedupe(text.match(EMAIL_RE) ?? []);
+      for (const email of emailsOnPage) {
+        const clean = email.toLowerCase();
+        if (isJunkEmail(clean, companyDomain)) continue;
+        if (allEmails.has(clean)) continue;
+        const name = findNearbyName(text, email);
+        allEmails.set(clean, { name, url: p.url, source: p.source, via: "page text" });
+      }
+
+      // Phones
       const phonesOnPage = dedupe(text.match(PHONE_RE) ?? []);
       for (const phone of phonesOnPage) {
         if (isJunkPhone(phone)) continue;
+        if (allPhones.has(phone)) continue;
         allPhones.set(phone, { url: p.url, source: p.source });
       }
 
-      // Extract LinkedIn profiles.
+      // LinkedIn profiles
       const linkedins = dedupe(text.match(LINKEDIN_PROFILE_RE) ?? []);
       for (const li of linkedins) {
-        allLinkedin.set(li, { url: p.url, source: p.source });
+        if (!allLinkedin.has(li)) allLinkedin.set(li, { url: p.url, source: p.source });
       }
 
-      // Capture names mentioned alongside target titles.
+      // Names near titles
       for (const title of targetTitles) {
         const titleRe = new RegExp(`\\b${title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "gi");
         let m: RegExpExecArray | null;
@@ -304,12 +387,103 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // ---------- STEP 4: hand REAL scraped data to LLM to organize ----------
-    // Build a compact "evidence packet" — the LLM may only use what's in here.
+    // ---------- Layer 4: Google-style fallback if zero emails found ----------
+    let googleFallbackUsed = false;
+    if (allEmails.size === 0 && companyDomain) {
+      googleFallbackUsed = true;
+      const fallbackQueries = [
+        `"@${companyDomain}" ${body.companyName}`,
+        `${body.companyName} email contact site:${companyDomain}`,
+        `"${body.companyName}" "email" contact`,
+        `${body.companyName} leadership email phone`,
+      ];
+      for (const q of fallbackQueries) {
+        const results = await zaiWebSearch(zai, q, 5);
+        for (const r of results) {
+          if (!r.url || seenUrls.has(r.url)) continue;
+          seenUrls.add(r.url);
+          const page = await getPageHtml(zai, r.url);
+          if (!page) continue;
+          sources.push(r.url);
+          const text = stripHtml(page.html);
+          const emails = dedupe(text.match(EMAIL_RE) ?? []);
+          for (const email of emails) {
+            const clean = email.toLowerCase();
+            if (isJunkEmail(clean, companyDomain)) continue;
+            if (allEmails.has(clean)) continue;
+            // Only keep emails on the company domain (we're looking for
+            // corporate contacts, not random emails on third-party pages).
+            if (!clean.endsWith("@" + companyDomain) && !clean.includes("@" + companyDomain.split(".")[0] + ".")) continue;
+            const name = findNearbyName(text, email);
+            allEmails.set(clean, { name, url: r.url, source: `Google fallback: "${q}"`, via: "page text" });
+          }
+          // Also harvest search snippets themselves — they often contain
+          // emails in plain text.
+          const snippetEmails = dedupe((r.snippet + " " + r.name).match(EMAIL_RE) ?? []);
+          for (const email of snippetEmails) {
+            const clean = email.toLowerCase();
+            if (isJunkEmail(clean, companyDomain)) continue;
+            if (allEmails.has(clean)) continue;
+            allEmails.set(clean, { name: undefined, url: r.url, source: `Google snippet: "${q}"`, via: "search snippet" });
+          }
+        }
+      }
+    }
+
+    // ---------- Layer 6: Email pattern inference (Apollo-style) ----------
+    // If we have a real name from the page but no email, generate the 5
+    // most common corporate email patterns on the company domain.
+    const inferredEmails: { email: string; name: string; sourceUrl: string }[] = [];
+    if (companyDomain && allEmails.size < maxContacts) {
+      // Collect real names we found near titles.
+      const realNames = dedupe(allNamesWithCtx.map((n) => n.name)).slice(0, 6);
+      for (const name of realNames) {
+        const patterns = inferEmailPatterns(name, companyDomain);
+        for (const email of patterns) {
+          // Skip if we already have this email from a real source.
+          if (allEmails.has(email)) continue;
+          // Skip if we already added it as inferred.
+          if (inferredEmails.some((e) => e.email === email)) continue;
+          const nameEntry = allNamesWithCtx.find((n) => n.name === name);
+          inferredEmails.push({
+            email,
+            name,
+            sourceUrl: nameEntry?.url ?? websiteUrl,
+          });
+        }
+      }
+    }
+
+    // ---------- Layer 5b: Apollo-style direct LinkedIn /in/ lookup ----------
+    // If operator pasted a personal LinkedIn URL, we should have at least
+    // one name+title from page-reading it. If we still have no email,
+    // infer patterns from that person's name on the company domain.
+    if (linkedinUrl && /\/in\//i.test(linkedinUrl) && companyDomain) {
+      // Try to extract the person's name from the LinkedIn page text we already read.
+      const linkedinPage = rawSnippets.find((s) => s.url === linkedinUrl || s.url.includes(linkedinUrl.replace(/^https?:\/\//, "")));
+      if (linkedinPage) {
+        const names = linkedinPage.text.match(NAME_RE) ?? [];
+        // Filter out junk and common LinkedIn UI text.
+        const realNames = names.filter((n) => {
+          const lower = n.toLowerCase();
+          return !["log in", "sign up", "join now", "sign in", "learn more", "view profile", "linked in", "all rights"].some((j) => lower.includes(j));
+        }).slice(0, 3);
+        for (const name of realNames) {
+          const patterns = inferEmailPatterns(name, companyDomain);
+          for (const email of patterns) {
+            if (allEmails.has(email)) continue;
+            if (inferredEmails.some((e) => e.email === email)) continue;
+            inferredEmails.push({ email, name, sourceUrl: linkedinUrl });
+          }
+        }
+      }
+    }
+
+    // ---------- Build evidence packet for LLM ----------
     const evidenceLines: string[] = [];
     let i = 0;
     for (const [email, meta] of allEmails) {
-      evidenceLines.push(`EMAIL[${i++}]: ${email}${meta.name ? ` (nearby name: ${meta.name})` : ""} [src: ${meta.source}]`);
+      evidenceLines.push(`EMAIL[${i++}]: ${email}${meta.name ? ` (nearby name: ${meta.name})` : ""} [via ${meta.via} | src: ${meta.source} | url: ${meta.url}]`);
     }
     i = 0;
     for (const [phone, meta] of allPhones) {
@@ -322,10 +496,15 @@ export async function POST(req: NextRequest) {
     if (allNamesWithCtx.length > 0) {
       evidenceLines.push("NAMES_FOUND_NEAR_TITLES:");
       for (const n of allNamesWithCtx.slice(0, 30)) {
-        evidenceLines.push(`  - ${n.name} [near: "${n.snippet.slice(0, 100)}" | src: ${n.source}]`);
+        evidenceLines.push(`  - ${n.name} [near: "${n.snippet.slice(0, 100)}" | src: ${n.source} | url: ${n.url}]`);
       }
     }
-    // Also include the top search snippets — these often contain real names + titles.
+    if (inferredEmails.length > 0) {
+      evidenceLines.push("INFERRED_EMAIL_PATTERNS (generated from real names + company domain — mark these as 'inferred' with low confidence):");
+      for (const e of inferredEmails.slice(0, 20)) {
+        evidenceLines.push(`  - ${e.email} (for name: ${e.name}) [src: ${e.sourceUrl}]`);
+      }
+    }
     evidenceLines.push("SEARCH_SNIPPETS:");
     for (const r of searchResults.slice(0, 12)) {
       evidenceLines.push(`  - [${r.host_name}] ${r.name}: ${r.snippet}`);
@@ -333,25 +512,24 @@ export async function POST(req: NextRequest) {
 
     const evidence = evidenceLines.join("\n");
 
-    const sys = `You are a sales-prospecting assistant. You will be given a packet of EVIDENCE scraped LIVE from the company's website and from web search results. Your job is to ORGANIZE this evidence into a clean contact list.
+    // ---------- Layer 7: LLM organization ----------
+    const sys = `You are a sales-prospecting assistant. You will be given a packet of EVIDENCE scraped LIVE from the company's website, LinkedIn, and Google search results. Your job is to ORGANIZE this evidence into a clean contact list.
 
 CRITICAL RULES — VIOLATING THESE IS A SHOWSTOPPER:
-1. You may ONLY use names, emails, phone numbers, and LinkedIn URLs that appear VERBATIM in the evidence packet below.
-2. You may NEVER invent, guess, or "pattern-fill" an email or phone number. If no email exists in the evidence for a person, set "email" to null.
-3. You may NEVER invent a name. If the evidence shows an email like "jdoe@acme.com" but no full name nearby, set "contactName" to "Unknown (jdoe@acme.com)".
-4. You may assign a "contactTitle" based on what the page said near the name (e.g. if the snippet says "Jane Doe, VP Marketing", the title is "VP Marketing"). If no title is mentioned near the name, set "contactTitle" to "Team Member".
-5. Rate "confidence" honestly based on this rubric:
+1. You may ONLY use names, emails, phone numbers, and LinkedIn URLs that appear VERBATIM in the evidence packet below OR in the INFERRED_EMAIL_PATTERNS section.
+2. You may NEVER invent an email or phone number that doesn't appear in the evidence. The only exception is INFERRED_EMAIL_PATTERNS — those are pattern-generated from a real name + the company domain, and you may use them but MUST set "confidence" to 20 or lower and "sourceType" to "inferred".
+3. For real scraped emails/phones, set "sourceType" to "scraped" and confidence per this rubric:
    - 80-100: Email domain matches the company website domain AND a name+title appeared nearby.
    - 50-79:  Email domain matches the company website domain but no name nearby, OR name+title found but no email.
    - 20-49:  Name found in a search snippet but no email/phone to attach.
-   - 0-19:   Only a generic info@ / contact@ mailbox was found, or only a phone number with no name.
-6. The "relevanceNote" should explain, in one sentence, why this contact would care about the product being sold (use the product context provided). If the contact is clearly generic (e.g. info@ mailbox), say so.
-7. Drop junk: ignore emails like info@, contact@, support@, noreply@, privacy@, legal@, press@ UNLESS the operator explicitly was looking for those. Prefer personal emails.
-8. Dedupe by email (keep highest-confidence entry).
-9. Rank highest-confidence first.
-10. Return at most ${maxContacts} contacts.
+4. You may assign a "contactTitle" based on what the page said near the name (e.g. if the snippet says "Jane Doe, VP Marketing", the title is "VP Marketing"). If no title is mentioned near the name, set "contactTitle" to "Team Member".
+5. The "relevanceNote" should explain, in one sentence, why this contact would care about the product being sold (use the product context provided). If the contact is clearly generic (e.g. info@ mailbox), say so.
+6. Drop junk: ignore emails like info@, contact@, support@, noreply@, privacy@, legal@, press@ UNLESS the operator explicitly was looking for those. Prefer personal emails.
+7. Dedupe by email (keep highest-confidence entry).
+8. Rank highest-confidence first.
+9. Return at most ${maxContacts} contacts.
 
-If the evidence packet is empty or contains zero real contact names/emails/phones, return an empty contacts array — do NOT fabricate fallback data.
+If the evidence packet is empty or contains zero real contact names/emails/phones AND zero inferred patterns, return an empty contacts array — do NOT fabricate fallback data.
 
 Return STRICT JSON only — no prose, no markdown fences:
 {
@@ -359,11 +537,12 @@ Return STRICT JSON only — no prose, no markdown fences:
     {
       "contactName": "<full name OR 'Unknown (email)' if name not on page>",
       "contactTitle": "<title from the page OR 'Team Member'>",
-      "email": "<exact email from evidence, OR null>",
+      "email": "<exact email from evidence OR from inferred patterns, OR null>",
       "phone": "<exact phone from evidence, OR null>",
       "linkedin": "<exact LinkedIn URL from evidence, OR null>",
       "relevanceNote": "<one sentence>",
       "confidence": <number 0-100>,
+      "sourceType": "scraped" | "inferred",
       "sourceUrl": "<URL where this contact was actually found>"
     }
   ]
@@ -373,7 +552,7 @@ JSON only.`;
 
     const user = `Target company: ${body.companyName}
 ${companyDomain ? `Company domain: ${companyDomain}` : "Company domain: (unknown — no website provided)"}
-${body.linkedinUrl ? `LinkedIn URL provided: ${body.linkedinUrl}` : ""}
+${linkedinUrl ? `LinkedIn URL provided: ${linkedinUrl}` : ""}
 ${body.productContext ? `What we sell: ${body.productContext}` : "What we sell: (not specified — pick general B2B buyers)"}
 Titles of interest: ${targetTitles.join(", ")}
 
@@ -390,7 +569,7 @@ Organize the evidence into at most ${maxContacts} contacts as JSON.`;
         { role: "user", content: user },
       ],
       temperature: 0.2,
-      max_tokens: 2200,
+      max_tokens: 2400,
     });
 
     const extracted = extractChatContent(completion);
@@ -407,8 +586,6 @@ Organize the evidence into at most ${maxContacts} contacts as JSON.`;
           typeof c.contactTitle === "string",
       );
 
-    // If the LLM obeyed and returned an empty array (no real evidence), OR
-    // returned junk, fall through to an honest "no contacts found" response.
     const aiContacts: any[] = isValid ? parsed.contacts : [];
 
     const contacts = aiContacts.slice(0, maxContacts).map((c: any, idx: number) => {
@@ -419,26 +596,30 @@ Organize the evidence into at most ${maxContacts} contacts as JSON.`;
         id: `c-${idx + 1}`,
         contactName: String(c.contactName),
         contactTitle: String(c.contactTitle),
-        email: email ?? "(not found on website)",
+        email: email ?? "(not found)",
         phone,
         linkedin,
         relevanceNote: c.relevanceNote ? String(c.relevanceNote) : undefined,
         confidence: typeof c.confidence === "number"
           ? Math.min(Math.max(c.confidence, 0), 100)
           : 30,
+        sourceType: c.sourceType === "inferred" ? "inferred" : "scraped",
         sourceUrl: c.sourceUrl ? String(c.sourceUrl) : undefined,
         clientConfirmed: false,
       };
     });
 
-    // Build an honest summary of what was actually scraped.
+    // ---------- Honest summary ----------
     const summary: string[] = [];
-    summary.push(`Scraped ${pages.length} page(s) from ${sources.length} source URL(s).`);
-    summary.push(`Found ${allEmails.size} raw email(s), ${allPhones.size} raw phone(s), ${allLinkedin.size} LinkedIn profile(s).`);
+    summary.push(`Scraped ${pages.length} page(s) directly + ${googleFallbackUsed ? "ran Google fallback searches" : "no Google fallback needed"}.`);
+    summary.push(`Found ${allEmails.size} real email(s), ${allPhones.size} phone(s), ${allLinkedin.size} LinkedIn profile(s), ${inferredEmails.length} inferred email pattern(s).`);
+    summary.push(`Total source URLs scraped: ${sources.length}.`);
     if (contacts.length === 0) {
-      summary.push("No usable contacts could be extracted — the company website may not list decision-makers publicly, or scraping was blocked.");
+      summary.push("No usable contacts could be extracted — the company website may not list decision-makers publicly, scraping may have been blocked, or the company has a very small web footprint.");
     } else {
-      summary.push(`${contacts.length} contact(s) organized from the evidence above.`);
+      const scraped = contacts.filter((c) => c.sourceType === "scraped").length;
+      const inferred = contacts.filter((c) => c.sourceType === "inferred").length;
+      summary.push(`${contacts.length} contact(s) organized from evidence (${scraped} scraped, ${inferred} inferred).`);
     }
 
     return NextResponse.json({
